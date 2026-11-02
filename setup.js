@@ -45,7 +45,7 @@ const CONFIG = {
 async function generateScriptWithOpenCodeSearch() {
   console.log("🤖 Asking OpenCode to search the web and synthesize a viral fact...");
   
-  const prompt = "Use your web search capability to discover today's trending, viral trivia topics or mind-blowing science, space, or historical facts. From the search results, extract ONE highly engaging trivia fact suitable for a 15-second YouTube Short. Clean the text, remove emojis, and keep it under 130 characters total. Return raw text only without quotes or introductory text.";
+  const prompt = "Return one factual, plain-text sentence about a well-established science, space, or historical fact suitable for a 15-second YouTube Short. Do not browse or claim the fact is trending or current. Keep it under 130 characters and do not include quotes or a preamble.";
   
   const response = await fetch('https://opencode.ai/inference/go/openai/v1/chat/completions', {
     method: 'POST',
@@ -62,12 +62,20 @@ async function generateScriptWithOpenCodeSearch() {
   });
   
   const result = await response.json();
-  if (!result.choices || result.choices.length === 0) {
+  const choice = result.choices?.[0];
+  if (!choice) {
     console.error("API Error Response Data Log:", result);
     throw new Error("Failed to get response from OpenCode model layer.");
   }
-  // FIX: Aligned structure array parsing rules with standard OpenAI responses schema
-  return result.choices[0].message.content.replace(/['"]/g, '').trim();
+  const content = choice.message?.content;
+  if (typeof content !== 'string' || !content.trim()) {
+    console.error("OpenCode response did not contain text:", {
+      finishReason: choice.finish_reason,
+      messageFields: choice.message ? Object.keys(choice.message) : []
+    });
+    throw new Error("OpenCode returned no text content.");
+  }
+  return content.replace(/['"]/g, '').trim();
 }
 
 async function renderVideoFFmpeg(factText) {
