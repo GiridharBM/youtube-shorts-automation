@@ -3,3 +3,4 @@ node_modules/
 .env.*
 !.env.example
 shorts_output.mp4
+shorts_*.mp4

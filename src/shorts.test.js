@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSceneSvg, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
+import { createSceneSvg, createStoryPrompt, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
 
 const story = {
   title: 'A quick science discovery',
@@ -42,6 +42,23 @@ test('accepts a six-scene story and fenced JSON', () => {
   assert.deepEqual(parseGoogleTrendsRss('<rss><channel><item><title><![CDATA[A &amp; B]]></title></item></channel></rss>'), [
     { title: 'A &amp; B', traffic: '', news: [] }
   ]);
+});
+
+test('builds separate original-fiction and fact-explainer prompts', () => {
+  const trends = [{
+    title: 'Science & space',
+    traffic: '10K+',
+    news: [{ title: 'News headline', snippet: 'A short snippet', source: 'Example' }]
+  }];
+  const cinematicPrompt = createStoryPrompt(trends, 'cinematic');
+  const factsPrompt = createStoryPrompt(trends, 'facts');
+
+  assert.match(cinematicPrompt, /original fictional mini-story/);
+  assert.match(cinematicPrompt, /do not use real private people, existing movie or franchise characters/);
+  assert.match(factsPrompt, /evergreen, widely established fact/);
+  assert.match(factsPrompt, /not evidence/);
+  assert.match(cinematicPrompt, /Science & space/);
+  assert.throws(() => createStoryPrompt(trends, 'podcast'), /Unsupported Short format/);
 });
 
 test('rejects malformed or oversized story fields', () => {
