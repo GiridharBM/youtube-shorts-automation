@@ -21,7 +21,8 @@ async function generateScriptWithOpenCodeSearch() {
     headers: {
       'Authorization': 'Bearer ' + CONFIG.openCodeKey,
       'Content-Type': 'application/json',
-      'x-opencode-session': 'automation-harness'
+      'User-Agent': 'youtube-shorts-automation/1.0',
+      'x-opencode-session': 'youtube-shorts-automation-' + (process.env.GITHUB_RUN_ID || process.pid)
     },
     body: JSON.stringify({
       model: 'beam-free',
