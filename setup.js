@@ -47,8 +47,7 @@ async function generateScriptWithOpenCodeSearch() {
   
   const prompt = "Use your web search capability to discover today's trending, viral trivia topics or mind-blowing science, space, or historical facts. From the search results, extract ONE highly engaging trivia fact suitable for a 15-second YouTube Short. Clean the text, remove emojis, and keep it under 130 characters total. Return raw text only without quotes or introductory text.";
   
-  // FIX: Using the explicit OpenCode inference API path string
-  const response = await fetch('https://opencode.ai/inference/openai/v1/chat/completions', {
+  const response = await fetch('https://opencode.ai/inference/go/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + CONFIG.openCodeKey,
