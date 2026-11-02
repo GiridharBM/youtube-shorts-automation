@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSceneSvg, createStoryPrompt, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
+import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
 
 const story = {
   title: 'A quick science discovery',
@@ -100,6 +100,15 @@ test('renders escaped, vertical SVG scenes with mobile-safe caption bounds', () 
 
   assert.match(svg, /width="1080" height="1920" viewBox="0 0 1080 1920"/);
   assert.match(svg, /Science &amp; space &lt;today&gt;/);
-  assert.match(svg, /x="90" y="1320" width="820" height="390"/);
-  assert.match(svg, /A &amp; B discovered a &lt;strange&gt; new planet\./);
+  assert.doesNotMatch(svg, /<text class="caption"/);
+});
+
+test('times readable ASS captions to spoken audio and scene boundaries', () => {
+  const captions = createAssCaptionTrack(story.scenes, [3.2, 4.1, 2.8, 3.6, 4.4, 3.9]);
+
+  assert.match(captions, /ScriptType: v4\.00\+/);
+  assert.match(captions, /Dialogue: 0,0:00:00\.00,0:00:03\.35,Caption/);
+  assert.match(captions, /Dialogue: 0,0:00:05\.00,0:00:09\.25,Caption/);
+  assert.match(captions, /Scientists discovered a\\Nfascinating detail in scene\\N1\./);
+  assert.throws(() => createAssCaptionTrack(story.scenes, [1]), /matching lengths/);
 });

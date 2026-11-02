@@ -199,6 +199,56 @@ function textLines(value, maxChars, x, firstY, lineHeight, className) {
     .join('\n');
 }
 
+function formatAssTime(seconds) {
+  const centiseconds = Math.round(seconds * 100);
+  const hours = Math.floor(centiseconds / 360000);
+  const minutes = Math.floor((centiseconds % 360000) / 6000);
+  const wholeSeconds = Math.floor((centiseconds % 6000) / 100);
+  const remainder = centiseconds % 100;
+  return `${hours}:${String(minutes).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')}.${String(remainder).padStart(2, '0')}`;
+}
+
+function escapeAssText(value) {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/{/g, '\\{')
+    .replace(/}/g, '\\}');
+}
+
+export function createAssCaptionTrack(scenes, spokenDurations) {
+  if (!Array.isArray(scenes) || !Array.isArray(spokenDurations) || scenes.length !== spokenDurations.length) {
+    throw new Error('Caption scenes and spoken durations must have matching lengths.');
+  }
+
+  const events = scenes.map((scene, index) => {
+    const duration = spokenDurations[index];
+    if (typeof scene?.narration !== 'string' || !Number.isFinite(duration) || duration <= 0) {
+      throw new Error(`Caption scene ${index + 1} has invalid narration timing.`);
+    }
+
+    const start = index * 5;
+    const end = start + Math.min(5, duration + 0.15);
+    const text = wrapText(scene.narration, 27).map(escapeAssText).join('\\N');
+    return `Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Caption,,0,0,0,,{\\fad(100,120)}${text}`;
+  });
+
+  return `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,DejaVu Sans,54,&H00FFFFFF,&H0000FFFF,&H00101831,&H26101831,-1,0,0,0,100,100,0,0,3,16,0,2,100,100,300,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+${events.join('\n')}
+`;
+}
+
 function sceneIllustration(scene, centerX, centerY) {
   const subject = `${scene.visual} ${scene.narration}`.toLowerCase();
 
@@ -257,7 +307,6 @@ export function createSceneSvg(story, scene, index) {
   const [start, end, accent] = palettes[index % palettes.length];
   const title = textLines(story.topic, 25, 540, 300, 76, 'topic');
   const visual = textLines(scene.visual, 38, 540, 1165, 38, 'visual');
-  const caption = textLines(scene.narration, 27, 540, 1435, 68, 'caption');
   const art = sceneIllustration(scene, 540, 765);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img">
@@ -272,7 +321,6 @@ export function createSceneSvg(story, scene, index) {
       .eyebrow{fill:#d7eaff;font-size:30px;font-weight:700;letter-spacing:7px}
       .topic{fill:#fff;font-size:62px;font-weight:700}
       .visual{fill:#d7eaff;font-size:34px;font-weight:500}
-      .caption{fill:#fff;font-size:54px;font-weight:700}
       .count{fill:#d7eaff;font-size:28px;font-weight:600;letter-spacing:4px}
     </style>
   </defs>
@@ -284,9 +332,5 @@ export function createSceneSvg(story, scene, index) {
   <g>${art}</g>
   <rect x="110" y="1080" width="800" height="190" rx="36" fill="#101831" fill-opacity=".52"/>
   ${visual}
-  <rect x="90" y="1320" width="820" height="390" rx="44" fill="#101831" fill-opacity=".84" filter="url(#shadow)"/>
-  <rect x="126" y="1360" width="10" height="275" rx="5" fill="${accent}"/>
-  ${caption}
-  <text class="count" x="540" y="1790">SCENE ${index + 1} / ${SCENE_COUNT}  •  30 SECONDS</text>
 </svg>`;
 }

@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
-import { createSceneSvg, createStoryPrompt, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
+import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
 
 const CONFIG = {
   openCodeKey: process.env.OPENCODE_ZEN_KEY,
@@ -141,9 +141,19 @@ function renderVideo(story, format) {
       return {
         imagePath,
         audioPath,
+        audioDuration,
         audioTempo: Math.max(1, audioDuration / (SCENE_DURATION_SECONDS * 0.96))
       };
     });
+
+    fs.writeFileSync(
+      path.join(workDir, 'captions.ass'),
+      createAssCaptionTrack(
+        story.scenes,
+        sceneFiles.map(scene => scene.audioDuration / scene.audioTempo)
+      ),
+      'utf8'
+    );
 
     const args = [];
     for (const { imagePath, audioPath } of sceneFiles) {
@@ -169,7 +179,8 @@ function renderVideo(story, format) {
       );
     }
     const concatInputs = sceneFiles.map((_, index) => `[v${index}][a${index}]`).join('');
-    sceneFilters.push(`${concatInputs}concat=n=${SCENE_COUNT}:v=1:a=1[vout][aout]`);
+    sceneFilters.push(`${concatInputs}concat=n=${SCENE_COUNT}:v=1:a=1[vjoined][aout]`);
+    sceneFilters.push('[vjoined]subtitles=captions.ass[vout]');
     args.push(
       '-filter_complex', sceneFilters.join(';'),
       '-map', '[vout]',
@@ -184,7 +195,7 @@ function renderVideo(story, format) {
       '-movflags', '+faststart',
       '-y', outputPath
     );
-    execFileSync('ffmpeg', args, { stdio: 'inherit' });
+    execFileSync('ffmpeg', args, { cwd: workDir, stdio: 'inherit' });
     return outputPath;
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });

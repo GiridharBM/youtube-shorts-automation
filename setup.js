@@ -55,7 +55,7 @@ jobs:
       - name: Install media tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg librsvg2-bin
+          sudo apt-get install -y ffmpeg librsvg2-bin fonts-dejavu-core
 
       - name: Install Piper and download licensed voice
         run: |
