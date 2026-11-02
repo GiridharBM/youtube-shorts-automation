@@ -2,8 +2,12 @@
   "name": "youtube-shorts-automation",
   "version": "1.0.0",
   "type": "module",
-  "description": "Autonomous YouTube Shorts pipeline powered by OpenCode and GitHub Actions.",
+  "description": "Automated 30-second YouTube Shorts with OpenCode Go and Google Trends.",
   "main": "src/engine.js",
+  "scripts": {
+    "start": "node src/engine.js",
+    "test": "node --test"
+  },
   "dependencies": {
     "googleapis": "^144.0.0",
     "node-fetch": "^2.7.0"
