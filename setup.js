@@ -56,7 +56,7 @@ async function generateScriptWithOpenCodeSearch() {
       'x-opencode-session': 'automation-harness'
     },
     body: JSON.stringify({
-      model: 'mimo-v2.6-flash-free',
+      model: 'beam-free',
       messages: [{ role: 'user', content: prompt }]
     })
   });
