@@ -13,7 +13,7 @@ const CONFIG = {
 async function generateScriptWithOpenCodeSearch() {
   console.log("🤖 Asking OpenCode to search the web and synthesize a viral fact...");
   
-  const prompt = "Return one factual, plain-text sentence about a well-established science, space, or historical fact suitable for a 15-second YouTube Short. Do not browse or claim the fact is trending or current. Keep it under 130 characters and do not include quotes or a preamble.";
+  const prompt = "Write one factual sentence under 130 characters about a well-established science, space, or historical fact suitable for a 15-second YouTube Short. Output only the sentence, without quotation marks, commentary, or a claim that you searched the web.";
   
   const response = await fetch('https://opencode.ai/inference/go/openai/v1/chat/completions', {
     method: 'POST',
