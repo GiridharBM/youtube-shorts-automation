@@ -1,5 +1,6 @@
 const STORY_FORMATS = ['cinematic', 'facts'];
 const VIDEO_FPS = 30;
+export const STORY_ANIMATION_FPS = 12;
 
 export function createStoryPrompt(trends, format) {
   if (!STORY_FORMATS.includes(format)) {
@@ -26,7 +27,7 @@ Return ONLY valid JSON with this shape:
 }
 
 ${topicInstruction}
-Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a simple vector illustration and within three short lines. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
+Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a simple vector illustration and within three short lines. For fictional stories, describe a clear action that can be acted out by an original animated stick figure. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
 
 Google Trends India results:
 ${JSON.stringify(trends.map(({ title, traffic, news }) => ({
@@ -308,7 +309,47 @@ function sceneIllustration(scene, centerX, centerY) {
     <circle cx="${centerX + 280}" cy="${centerY + 15}" r="12" fill="#fff"/>`;
 }
 
-export function createSceneSvg(story, scene, index) {
+function stickFigureSvg(frame, frameCount, centerX, headY, color = '#ffd166') {
+  const phase = (frame / frameCount) * Math.PI * 2;
+  const stride = Math.sin(phase);
+  const bounce = Math.abs(stride) * 13;
+  const x = centerX + stride * 20;
+  const head = headY + bounce;
+  const shoulderY = head + 125;
+  const hipY = head + 290;
+  const leftFootX = x - 75 + stride * 86;
+  const rightFootX = x + 75 - stride * 86;
+  const leftFootY = head + 465 - Math.max(0, stride) * 30;
+  const rightFootY = head + 465 - Math.max(0, -stride) * 30;
+  const leftHandX = x - 142 - stride * 64;
+  const rightHandX = x + 142 + stride * 64;
+  const leftHandY = shoulderY + 92 + Math.max(0, stride) * 20;
+  const rightHandY = shoulderY + 92 + Math.max(0, -stride) * 20;
+
+  return `
+    <ellipse cx="${centerX}" cy="${headY + 486}" rx="154" ry="24" fill="#080d20" opacity=".3"/>
+    <g class="story-figure" fill="none" stroke="#111831" stroke-width="31" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M${x} ${head + 65}V${hipY}"/>
+      <path d="M${x - 8} ${shoulderY}L${leftHandX} ${leftHandY}"/>
+      <path d="M${x + 8} ${shoulderY}L${rightHandX} ${rightHandY}"/>
+      <path d="M${x - 8} ${hipY}L${leftFootX} ${leftFootY}"/>
+      <path d="M${x + 8} ${hipY}L${rightFootX} ${rightFootY}"/>
+      <path d="M${leftFootX} ${leftFootY}l-27 4M${rightFootX} ${rightFootY}l27 4"/>
+    </g>
+    <g class="story-figure" fill="none" stroke="${color}" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M${x} ${head + 65}V${hipY}"/>
+      <path d="M${x - 8} ${shoulderY}L${leftHandX} ${leftHandY}"/>
+      <path d="M${x + 8} ${shoulderY}L${rightHandX} ${rightHandY}"/>
+      <path d="M${x - 8} ${hipY}L${leftFootX} ${leftFootY}"/>
+      <path d="M${x + 8} ${hipY}L${rightFootX} ${rightFootY}"/>
+    </g>
+    <circle cx="${x}" cy="${head}" r="66" fill="#fff5df" stroke="#111831" stroke-width="18"/>
+    <circle cx="${x - 22}" cy="${head - 7}" r="5" fill="#111831"/>
+    <circle cx="${x + 22}" cy="${head - 7}" r="5" fill="#111831"/>
+    <path d="M${x - 18} ${head + 22}q18 17 36 0" fill="none" stroke="#111831" stroke-width="7" stroke-linecap="round"/>`;
+}
+
+export function createSceneSvg(story, scene, index, options = {}) {
   const palettes = [
     ['#101a46', '#35256b', '#fc8fbd'],
     ['#0c344d', '#155c70', '#78e4d2'],
@@ -321,6 +362,9 @@ export function createSceneSvg(story, scene, index) {
   const title = textLines(story.topic, 25, 540, 300, 76, 'topic');
   const visual = textLines(scene.visual, 38, 540, 1165, 38, 'visual');
   const art = sceneIllustration(scene, 540, 765);
+  const storyFigure = options.animated
+    ? stickFigureSvg(options.frame ?? 0, options.frameCount ?? STORY_ANIMATION_FPS, 540, 492, accent)
+    : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img">
   <title>${escapeXml(story.topic)} — scene ${index + 1}</title>
@@ -343,7 +387,47 @@ export function createSceneSvg(story, scene, index) {
   <text class="eyebrow" x="540" y="185">INDIA TREND EXPLAINER</text>
   ${title}
   <g>${art}</g>
+  ${storyFigure}
   <rect x="110" y="1080" width="800" height="190" rx="36" fill="#101831" fill-opacity=".52"/>
   ${visual}
+</svg>`;
+}
+
+export function createThumbnailSvg(story, format) {
+  if (!STORY_FORMATS.includes(format)) {
+    throw new Error(`Unsupported Short format: ${format}.`);
+  }
+  if (!story || typeof story.title !== 'string' || !Array.isArray(story.scenes) || story.scenes.length === 0) {
+    throw new Error('A title and at least one scene are required to create a thumbnail.');
+  }
+
+  const isStory = format === 'cinematic';
+  const background = isStory ? '#171a35' : '#e8f1ec';
+  const foreground = isStory ? '#fff3d4' : '#153c4b';
+  const accent = isStory ? '#ff826e' : '#087f78';
+  const category = isStory ? 'A SHORT STORY' : 'ONE CURIOUS FACT';
+  const headline = textLines(story.title, 21, 540, 520, 96, 'headline');
+  const art = isStory
+    ? stickFigureSvg(3, STORY_ANIMATION_FPS, 540, 1115, '#ffd166')
+    : sceneIllustration(story.scenes[0], 540, 1330);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img">
+  <title>${escapeXml(category)}: ${escapeXml(story.title)}</title>
+  <desc>${escapeXml(story.scenes[0].visual)}</desc>
+  <defs>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${background}"/><stop offset="1" stop-color="${isStory ? '#2d254d' : '#c9e2d9'}"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="${accent}" stop-opacity=".8"/><stop offset="1" stop-color="${accent}" stop-opacity="0"/></radialGradient>
+    <style>
+      text{font-family:Arial,sans-serif;text-anchor:middle}
+      .category{fill:${isStory ? '#ffd166' : '#087f78'};font-size:38px;font-weight:700;letter-spacing:5px}
+      .headline{fill:${foreground};font-size:78px;font-weight:800}
+    </style>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#cover)"/>
+  <circle cx="540" cy="1350" r="510" fill="url(#glow)" opacity=".34"/>
+  ${isStory ? '<path d="M115 1030Q540 820 965 1030" fill="none" stroke="#ff826e" stroke-width="5" stroke-dasharray="10 18" opacity=".8"/>' : '<path d="M150 1030H930" stroke="#087f78" stroke-width="6" opacity=".35"/>'}
+  <text class="category" x="540" y="255">${category}</text>
+  ${headline}
+  <g>${art}</g>
 </svg>`;
 }

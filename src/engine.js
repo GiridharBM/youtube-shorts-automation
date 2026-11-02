@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
-import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, frameAlignedDuration, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
+import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, createThumbnailSvg, frameAlignedDuration, parseGoogleTrendsRss, parseStoryResponse, STORY_ANIMATION_FPS } from './shorts.js';
 
 const CONFIG = {
   openCodeKey: process.env.OPENCODE_ZEN_KEY,
@@ -101,19 +101,11 @@ async function generateStory(trends, format) {
 function renderVideo(story, format) {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'youtube-shorts-'));
   const outputPath = path.resolve(`shorts_${format}.mp4`);
+  const thumbnailPath = path.resolve(`shorts_${format}_thumbnail.jpg`);
 
   try {
     const sceneFiles = story.scenes.map((scene, index) => {
-      const svgPath = path.join(workDir, `scene-${index + 1}.svg`);
-      const imagePath = path.join(workDir, `scene-${index + 1}.png`);
       const audioPath = path.join(workDir, `scene-${index + 1}.wav`);
-      fs.writeFileSync(svgPath, createSceneSvg(story, scene, index), 'utf8');
-      execFileSync('rsvg-convert', [
-        '--width', '1080',
-        '--height', '1920',
-        '--output', imagePath,
-        svgPath
-      ], { stdio: 'inherit' });
       execFileSync(PIPER_PYTHON, [
         '-m', 'piper',
         '-m', PIPER_VOICE,
@@ -135,11 +127,45 @@ function renderVideo(story, format) {
         throw new Error(`Piper returned an invalid narration duration for scene ${index + 1}.`);
       }
 
+      const sceneDuration = frameAlignedDuration(audioDuration);
+      const animated = format === 'cinematic';
+      let imagePath;
+      if (animated) {
+        const frameCount = Math.ceil(sceneDuration * STORY_ANIMATION_FPS);
+        for (let frame = 0; frame < frameCount; frame += 1) {
+          const svgPath = path.join(workDir, `scene-${index + 1}-frame-${frame + 1}.svg`);
+          const framePath = path.join(workDir, `scene-${index + 1}-frame-${String(frame + 1).padStart(5, '0')}.png`);
+          fs.writeFileSync(
+            svgPath,
+            createSceneSvg(story, scene, index, { animated: true, frame, frameCount }),
+            'utf8'
+          );
+          execFileSync('rsvg-convert', [
+            '--width', '540',
+            '--height', '960',
+            '--output', framePath,
+            svgPath
+          ], { stdio: 'inherit' });
+        }
+        imagePath = path.join(workDir, `scene-${index + 1}-frame-%05d.png`);
+      } else {
+        const svgPath = path.join(workDir, `scene-${index + 1}.svg`);
+        imagePath = path.join(workDir, `scene-${index + 1}.png`);
+        fs.writeFileSync(svgPath, createSceneSvg(story, scene, index), 'utf8');
+        execFileSync('rsvg-convert', [
+          '--width', '1080',
+          '--height', '1920',
+          '--output', imagePath,
+          svgPath
+        ], { stdio: 'inherit' });
+      }
+
       return {
         imagePath,
         audioPath,
         audioDuration,
-        sceneDuration: frameAlignedDuration(audioDuration)
+        sceneDuration,
+        animated
       };
     });
 
@@ -153,14 +179,22 @@ function renderVideo(story, format) {
     );
 
     const args = [];
-    for (const { imagePath, audioPath, sceneDuration } of sceneFiles) {
-      args.push(
-        '-loop', '1',
-        '-framerate', '30',
-        '-t', sceneDuration.toFixed(6),
-        '-i', imagePath,
-        '-i', audioPath
-      );
+    for (const { imagePath, audioPath, sceneDuration, animated } of sceneFiles) {
+      if (animated) {
+        args.push(
+          '-framerate', String(STORY_ANIMATION_FPS),
+          '-start_number', '1',
+          '-i', imagePath
+        );
+      } else {
+        args.push(
+          '-loop', '1',
+          '-framerate', '30',
+          '-t', sceneDuration.toFixed(6),
+          '-i', imagePath
+        );
+      }
+      args.push('-i', audioPath);
     }
 
     const sceneFilters = [];
@@ -171,7 +205,7 @@ function renderVideo(story, format) {
         ? ",zoompan=z='min(zoom+0.0005,1.075)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30"
         : '';
       sceneFilters.push(
-        `[${imageInput}:v]scale=1080:1920,fps=30${cinematicMotion},setsar=1,format=yuv420p,setpts=PTS-STARTPTS[v${index}]`,
+        `[${imageInput}:v]scale=1080:1920,fps=30,trim=duration=${scene.sceneDuration.toFixed(6)}${cinematicMotion},setsar=1,format=yuv420p,setpts=PTS-STARTPTS[v${index}]`,
         `[${audioInput}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration=${scene.sceneDuration.toFixed(6)},asetpts=PTS-STARTPTS[a${index}]`
       );
     }
@@ -192,20 +226,41 @@ function renderVideo(story, format) {
       '-y', outputPath
     );
     execFileSync('ffmpeg', args, { cwd: workDir, stdio: 'inherit' });
-    return outputPath;
+
+    const thumbnailSvg = path.join(workDir, `thumbnail-${format}.svg`);
+    const thumbnailPng = path.join(workDir, `thumbnail-${format}.png`);
+    fs.writeFileSync(thumbnailSvg, createThumbnailSvg(story, format), 'utf8');
+    execFileSync('rsvg-convert', [
+      '--width', '1080',
+      '--height', '1920',
+      '--output', thumbnailPng,
+      thumbnailSvg
+    ], { stdio: 'inherit' });
+    execFileSync('ffmpeg', [
+      '-v', 'error',
+      '-i', thumbnailPng,
+      '-frames:v', '1',
+      '-q:v', '2',
+      '-y', thumbnailPath
+    ], { stdio: 'inherit' });
+    if (!fs.existsSync(thumbnailPath) || fs.statSync(thumbnailPath).size === 0) {
+      throw new Error(`FFmpeg did not generate the ${format} thumbnail.`);
+    }
+
+    return { videoPath: outputPath, thumbnailPath };
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }
 }
 
-async function uploadToYouTube(filePath, story, format) {
+async function uploadToYouTube(filePath, thumbnailPath, story, format) {
   console.log(`📤 Uploading the ${format} Short as unlisted for review...`);
   const oauth2Client = new google.auth.OAuth2(CONFIG.clientId, CONFIG.clientSecret);
   oauth2Client.setCredentials({ refresh_token: CONFIG.refreshToken });
   const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
   const title = `${story.title} #Shorts`.slice(0, 100);
   const formatNote = format === 'cinematic'
-    ? 'Original fictional mini-story with original vector illustrations.'
+    ? 'Original fictional mini-story with animated stick-figure scenes.'
     : 'AI-assisted factual explainer; review claims before sharing.';
   const description = `${story.description}\n\n${formatNote}\nTopic inspired by Google Trends India.\nVoice: Piper TTS, en_US-ljspeech-high. Voice model card: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/ljspeech/high (trained on the public-domain LJ Speech dataset).\n#shorts #facts #trending`;
 
@@ -223,6 +278,8 @@ async function uploadToYouTube(filePath, story, format) {
   });
 
   console.log(`✅ Unlisted video uploaded: https://www.youtube.com/watch?v=${response.data.id}`);
+  console.log(`🖼️ Custom Shorts thumbnail generated: ${thumbnailPath}`);
+  console.log('   Apply it in YouTube Studio on a computer; the Data API does not document Shorts-specific thumbnail support.');
 }
 
 async function runner() {
@@ -238,8 +295,10 @@ async function runner() {
   for (const format of ['cinematic', 'facts']) {
     const story = await generateStory(trends, format);
     console.log(`✨ Generated ${format} topic: ${story.topic}`);
-    const videoPath = renderVideo(story, format);
-    await uploadToYouTube(videoPath, story, format);
+    const { videoPath, thumbnailPath } = renderVideo(story, format);
+    console.log(`🎞️ Rendered ${format} video: ${videoPath}`);
+    console.log(`🖼️ Rendered ${format} thumbnail: ${thumbnailPath}`);
+    await uploadToYouTube(videoPath, thumbnailPath, story, format);
   }
 }
 

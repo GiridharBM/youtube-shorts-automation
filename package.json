@@ -2,7 +2,7 @@
   "name": "youtube-shorts-automation",
   "version": "1.0.0",
   "type": "module",
-  "description": "Automated 30-second YouTube Shorts with OpenCode Go and Google Trends.",
+  "description": "Automated sentence-paced YouTube Shorts with original vector art, Piper TTS, and Google Trends.",
   "main": "src/engine.js",
   "scripts": {
     "start": "node src/engine.js",

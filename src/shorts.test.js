@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, frameAlignedDuration, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
+import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, createThumbnailSvg, frameAlignedDuration, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
 
 const story = {
   title: 'A quick science discovery',
@@ -112,6 +112,29 @@ test('renders escaped, vertical SVG scenes with mobile-safe caption bounds', () 
   assert.match(svg, /width="1080" height="1920" viewBox="0 0 1080 1920"/);
   assert.match(svg, /Science &amp; space &lt;today&gt;/);
   assert.doesNotMatch(svg, /<text class="caption"/);
+});
+
+test('animates story scenes with original stick figures', () => {
+  const scene = story.scenes[0];
+  const firstFrame = createSceneSvg(story, scene, 0, { animated: true, frame: 0, frameCount: 8 });
+  const nextFrame = createSceneSvg(story, scene, 0, { animated: true, frame: 2, frameCount: 8 });
+
+  assert.match(firstFrame, /class="story-figure"/);
+  assert.notEqual(firstFrame, nextFrame);
+  assert.doesNotMatch(createSceneSvg(story, scene, 0), /class="story-figure"/);
+});
+
+test('creates distinct vertical story and fact thumbnail artwork', () => {
+  const storyThumbnail = createThumbnailSvg(story, 'cinematic');
+  const factsThumbnail = createThumbnailSvg(story, 'facts');
+
+  assert.match(storyThumbnail, /width="1080" height="1920"/);
+  assert.match(storyThumbnail, /A SHORT STORY/);
+  assert.match(storyThumbnail, /class="story-figure"/);
+  assert.match(factsThumbnail, /ONE CURIOUS FACT/);
+  assert.doesNotMatch(factsThumbnail, /class="story-figure"/);
+  assert.notEqual(storyThumbnail, factsThumbnail);
+  assert.throws(() => createThumbnailSvg(story, 'podcast'), /Unsupported Short format/);
 });
 
 test('times readable ASS captions to spoken audio and scene boundaries', () => {

@@ -41,7 +41,7 @@ jobs:
       - name: Verify pipeline helpers
         run: npm test
 
-      - name: Generate and upload unlisted Short
+      - name: Render and upload unlisted Shorts
         env:
           OPENCODE_ZEN_KEY: ${{ secrets.OPENCODE_ZEN_KEY }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -49,3 +49,16 @@ jobs:
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           PIPER_PYTHON: ${{ github.workspace }}/.venv/bin/python
         run: npm start
+
+      - name: Save rendered videos and thumbnails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shorts-preview-${{ github.run_id }}
+          path: |
+            shorts_cinematic.mp4
+            shorts_facts.mp4
+            shorts_cinematic_thumbnail.jpg
+            shorts_facts_thumbnail.jpg
+          if-no-files-found: ignore
+          retention-days: 7

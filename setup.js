@@ -15,7 +15,7 @@ const packageJson = {
   name: 'youtube-shorts-automation',
   version: '1.0.0',
   type: 'module',
-  description: 'Automated 30-second YouTube Shorts with OpenCode Go and Google Trends.',
+  description: 'Automated sentence-paced YouTube Shorts with original vector art, Piper TTS, and Google Trends.',
   main: 'src/engine.js',
   scripts: {
     start: 'node src/engine.js',
@@ -70,14 +70,27 @@ jobs:
       - name: Verify pipeline helpers
         run: npm test
 
-      - name: Generate and upload unlisted Short
+      - name: Render and upload unlisted Shorts
         env:
           OPENCODE_ZEN_KEY: \${{ secrets.OPENCODE_ZEN_KEY }}
           YT_CLIENT_ID: \${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: \${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: \${{ secrets.YT_REFRESH_TOKEN }}
           PIPER_PYTHON: \${{ github.workspace }}/.venv/bin/python
-        run: npm start`;
+        run: npm start
+
+      - name: Save rendered videos and thumbnails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shorts-preview-\${{ github.run_id }}
+          path: |
+            shorts_cinematic.mp4
+            shorts_facts.mp4
+            shorts_cinematic_thumbnail.jpg
+            shorts_facts_thumbnail.jpg
+          if-no-files-found: ignore
+          retention-days: 7`;
 
 fs.writeFileSync('package.json', `${JSON.stringify(packageJson, null, 2)}\n`);
 fs.writeFileSync('.github/workflows/pipeline.yml', pipelineYml);
