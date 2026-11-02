@@ -89,6 +89,7 @@ jobs:
             shorts_facts.mp4
             shorts_cinematic_thumbnail.jpg
             shorts_facts_thumbnail.jpg
+            shorts_upload_status.json
           if-no-files-found: ignore
           retention-days: 7`;
 

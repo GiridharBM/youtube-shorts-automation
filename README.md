@@ -12,6 +12,11 @@ apply.
 
 Each run also saves both MP4s and their 9:16 JPEG thumbnails as a downloadable
 GitHub Actions artifact named `shorts-preview-<run id>` (kept for seven days).
+The artifact includes `shorts_upload_status.json` with the outcome for each
+upload. If YouTube rejects an upload because the channel reached its limit, the
+pipeline still renders both Shorts, skips further upload attempts for that run,
+and preserves all outputs; the upload step remains failed so the limit is
+visible in Actions.
 YouTube's current Shorts guidance requires applying a custom thumbnail in
 YouTube Studio on a computer. The Data API documents general thumbnail uploads
 but not Shorts-specific support, so the generated images are included in the

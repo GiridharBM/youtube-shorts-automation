@@ -282,6 +282,14 @@ async function uploadToYouTube(filePath, thumbnailPath, story, format) {
   console.log('   Apply it in YouTube Studio on a computer; the Data API does not document Shorts-specific thumbnail support.');
 }
 
+export function getYouTubeApiErrorReason(error) {
+  const apiErrors = [
+    ...(Array.isArray(error?.errors) ? error.errors : []),
+    ...(Array.isArray(error?.response?.data?.error?.errors) ? error.response.data.error.errors : [])
+  ];
+  return apiErrors.find(apiError => typeof apiError?.reason === 'string')?.reason || '';
+}
+
 async function runner() {
   const missing = Object.entries(CONFIG)
     .filter(([, value]) => !value)
@@ -292,13 +300,60 @@ async function runner() {
 
   const trends = await fetchTrendingTopics();
   console.log(`📈 Loaded ${trends.length} Google Trends topics for India.`);
+  const renderedShorts = [];
   for (const format of ['cinematic', 'facts']) {
     const story = await generateStory(trends, format);
     console.log(`✨ Generated ${format} topic: ${story.topic}`);
     const { videoPath, thumbnailPath } = renderVideo(story, format);
     console.log(`🎞️ Rendered ${format} video: ${videoPath}`);
     console.log(`🖼️ Rendered ${format} thumbnail: ${thumbnailPath}`);
-    await uploadToYouTube(videoPath, thumbnailPath, story, format);
+    renderedShorts.push({ videoPath, thumbnailPath, story, format });
+  }
+
+  const uploadResults = [];
+  let uploadLimitReached = false;
+  for (const item of renderedShorts) {
+    if (uploadLimitReached) {
+      uploadResults.push({
+        format: item.format,
+        status: 'skipped',
+        reason: 'The channel upload limit was reached during this workflow run.'
+      });
+      continue;
+    }
+
+    try {
+      await uploadToYouTube(item.videoPath, item.thumbnailPath, item.story, item.format);
+      uploadResults.push({ format: item.format, status: 'uploaded' });
+    } catch (error) {
+      const reason = getYouTubeApiErrorReason(error);
+      const uploadLimit = reason === 'uploadLimitExceeded';
+      uploadResults.push({
+        format: item.format,
+        status: uploadLimit ? 'blocked' : 'failed',
+        reason: error.message,
+        apiReason: reason || undefined
+      });
+      if (uploadLimit) {
+        uploadLimitReached = true;
+        console.error('YouTube has reached this channel’s upload limit. Remaining rendered Shorts will be saved but not uploaded.');
+      }
+    }
+  }
+
+  const uploadReportPath = path.resolve('shorts_upload_status.json');
+  fs.writeFileSync(uploadReportPath, `${JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    uploads: uploadResults
+  }, null, 2)}\n`, 'utf8');
+  console.log(`📋 Upload results saved: ${uploadReportPath}`);
+
+  const failures = uploadResults.filter(result => result.status === 'blocked' || result.status === 'failed');
+  if (failures.length > 0) {
+    throw new Error(
+      `${failures.length} of ${renderedShorts.length} Shorts could not be uploaded. ` +
+      'Rendered videos, thumbnails, and shorts_upload_status.json were saved as workflow artifacts.'
+    );
   }
 }
 

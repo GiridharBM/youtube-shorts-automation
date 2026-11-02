@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { getYouTubeApiErrorReason } from './engine.js';
 import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, createThumbnailSvg, frameAlignedDuration, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
 
 const story = {
@@ -135,6 +136,16 @@ test('creates distinct vertical story and fact thumbnail artwork', () => {
   assert.doesNotMatch(factsThumbnail, /class="story-figure"/);
   assert.notEqual(storyThumbnail, factsThumbnail);
   assert.throws(() => createThumbnailSvg(story, 'podcast'), /Unsupported Short format/);
+});
+
+test('recognizes YouTube upload-limit errors from API responses', () => {
+  assert.equal(getYouTubeApiErrorReason({ errors: [{ reason: 'uploadLimitExceeded' }] }), 'uploadLimitExceeded');
+  assert.equal(
+    getYouTubeApiErrorReason({ response: { data: { error: { errors: [{ reason: 'uploadLimitExceeded' }] } } } }),
+    'uploadLimitExceeded'
+  );
+  assert.equal(getYouTubeApiErrorReason({ errors: [{ reason: 'forbidden' }] }), 'forbidden');
+  assert.equal(getYouTubeApiErrorReason(new Error('network error')), '');
 });
 
 test('times readable ASS captions to spoken audio and scene boundaries', () => {
