@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
+import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, frameAlignedDuration, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
 
 const story = {
   title: 'A quick science discovery',
@@ -37,8 +37,9 @@ test('parses Google Trends RSS titles and related news safely', () => {
   ]);
 });
 
-test('accepts a six-scene story and fenced JSON', () => {
+test('accepts a variable-scene story and fenced JSON', () => {
   assert.deepEqual(parseStoryResponse(`\`\`\`json\n${JSON.stringify(story)}\n\`\`\``), story);
+  assert.equal(parseStoryResponse(JSON.stringify({ ...story, scenes: story.scenes.slice(0, 2) })).scenes.length, 2);
   assert.deepEqual(parseGoogleTrendsRss('<rss><channel><item><title><![CDATA[A &amp; B]]></title></item></channel></rss>'), [
     { title: 'A &amp; B', traffic: '', news: [] }
   ]);
@@ -55,6 +56,8 @@ test('builds separate original-fiction and fact-explainer prompts', () => {
 
   assert.match(cinematicPrompt, /original fictional mini-story/);
   assert.match(cinematicPrompt, /do not use real private people, existing movie or franchise characters/);
+  assert.match(cinematicPrompt, /no fixed scene count or video duration/);
+  assert.match(cinematicPrompt, /one complete narration sentence/);
   assert.match(factsPrompt, /evergreen, widely established fact/);
   assert.match(factsPrompt, /not evidence/);
   assert.match(cinematicPrompt, /Science & space/);
@@ -69,10 +72,10 @@ test('rejects malformed or oversized story fields', () => {
   );
 });
 
-test('rejects stories that cannot fit six mobile-safe five-second captions', () => {
+test('rejects empty stories, multi-sentence scenes, and captions that do not fit mobile', () => {
   assert.throws(
-    () => parseStoryResponse(JSON.stringify({ ...story, scenes: story.scenes.slice(1) })),
-    /exactly 6 scenes/
+    () => parseStoryResponse(JSON.stringify({ ...story, scenes: [] })),
+    /at least one scene/
   );
   const tooLong = {
     ...story,
@@ -81,6 +84,14 @@ test('rejects stories that cannot fit six mobile-safe five-second captions', () 
     )
   };
   assert.throws(() => parseStoryResponse(JSON.stringify(tooLong)), /5–9 words/);
+
+  const twoSentences = {
+    ...story,
+    scenes: story.scenes.map((scene, index) =>
+      index === 0 ? { ...scene, narration: 'Scientists made a new discovery. It changed everything.' } : scene
+    )
+  };
+  assert.throws(() => parseStoryResponse(JSON.stringify(twoSentences)), /exactly one sentence/);
 
   const overflowingVisual = {
     ...story,
@@ -104,11 +115,14 @@ test('renders escaped, vertical SVG scenes with mobile-safe caption bounds', () 
 });
 
 test('times readable ASS captions to spoken audio and scene boundaries', () => {
-  const captions = createAssCaptionTrack(story.scenes, [3.2, 4.1, 2.8, 3.6, 4.4, 3.9]);
+  const captions = createAssCaptionTrack(story.scenes.slice(0, 3), [3.2, 4.1, 2.8]);
 
   assert.match(captions, /ScriptType: v4\.00\+/);
-  assert.match(captions, /Dialogue: 0,0:00:00\.00,0:00:03\.35,Caption/);
-  assert.match(captions, /Dialogue: 0,0:00:05\.00,0:00:09\.25,Caption/);
+  assert.match(captions, /Dialogue: 0,0:00:00\.00,0:00:03\.20,Caption/);
+  assert.match(captions, /Dialogue: 0,0:00:03\.20,0:00:07\.30,Caption/);
+  assert.match(captions, /Dialogue: 0,0:00:07\.30,0:00:10\.10,Caption/);
   assert.match(captions, /Scientists discovered a\\Nfascinating detail in scene\\N1\./);
   assert.throws(() => createAssCaptionTrack(story.scenes, [1]), /matching lengths/);
+  assert.equal(frameAlignedDuration(3.2), 3.2);
+  assert.equal(frameAlignedDuration(3.21), 3.2333333333333334);
 });
