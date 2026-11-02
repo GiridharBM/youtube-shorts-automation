@@ -1,0 +1,11 @@
+{
+  "name": "youtube-shorts-automation",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Autonomous YouTube Shorts pipeline powered by OpenCode and GitHub Actions.",
+  "main": "src/engine.js",
+  "dependencies": {
+    "googleapis": "^144.0.0",
+    "node-fetch": "^2.7.0"
+  }
+}
