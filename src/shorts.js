@@ -123,8 +123,8 @@ export function parseStoryResponse(content) {
 
     const narration = scene.narration.trim();
     const words = narration.split(/\s+/);
-    if (!narration || narration.length > 100 || words.length < 5 || words.length > 12) {
-      throw new Error(`Scene ${index + 1} narration must be 5–12 words and fit the caption area.`);
+    if (!narration || narration.length > 80 || words.length < 5 || words.length > 9) {
+      throw new Error(`Scene ${index + 1} narration must be 5–9 words and fit the voiceover and caption area.`);
     }
     if (wrapText(narration, 27).length > 4) {
       throw new Error(`Scene ${index + 1} narration does not fit the mobile caption layout.`);

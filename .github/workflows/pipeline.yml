@@ -18,10 +18,22 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install media tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg librsvg2-bin
+
+      - name: Install Piper and download licensed voice
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install piper-tts
+          .venv/bin/python -m piper.download_voices en_US-ljspeech-high --data-dir assets/piper
 
       - name: Install dependencies
         run: npm ci
@@ -35,4 +47,5 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          PIPER_PYTHON: ${{ github.workspace }}/.venv/bin/python
         run: npm start

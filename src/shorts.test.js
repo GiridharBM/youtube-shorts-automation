@@ -60,10 +60,10 @@ test('rejects stories that cannot fit six mobile-safe five-second captions', () 
   const tooLong = {
     ...story,
     scenes: story.scenes.map((scene, index) =>
-      index === 0 ? { ...scene, narration: 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen' } : scene
+      index === 0 ? { ...scene, narration: 'one two three four five six seven eight nine ten' } : scene
     )
   };
-  assert.throws(() => parseStoryResponse(JSON.stringify(tooLong)), /5–12 words/);
+  assert.throws(() => parseStoryResponse(JSON.stringify(tooLong)), /5–9 words/);
 
   const overflowingVisual = {
     ...story,
