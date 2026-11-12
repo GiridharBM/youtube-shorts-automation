@@ -128,7 +128,7 @@ function renderVideo(story, format) {
       }
 
       const sceneDuration = frameAlignedDuration(audioDuration);
-      const animated = format === 'cinematic';
+      const animated = format === 'cinematic' || format === 'facts';
       let imagePath;
       if (animated) {
         const frameCount = Math.ceil(sceneDuration * STORY_ANIMATION_FPS);
@@ -261,7 +261,7 @@ async function uploadToYouTube(filePath, thumbnailPath, story, format) {
   const title = `${story.title} #Shorts`.slice(0, 100);
   const formatNote = format === 'cinematic'
     ? 'Original fictional mini-story with animated stick-figure scenes.'
-    : 'AI-assisted factual explainer; review claims before sharing.';
+    : 'Original fact-based explainer with code-rendered animated vector scenes; review claims before sharing.';
   const description = `${story.description}\n\n${formatNote}\nTopic inspired by Google Trends India.\nVoice: Piper TTS, en_US-ljspeech-high. Voice model card: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/ljspeech/high (trained on the public-domain LJ Speech dataset).\n#shorts #facts #trending`;
 
   const response = await youtube.videos.insert({

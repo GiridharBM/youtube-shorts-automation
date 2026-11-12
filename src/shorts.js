@@ -9,7 +9,7 @@ export function createStoryPrompt(trends, format) {
 
   const formatInstructions = format === 'cinematic'
     ? 'Write an original fictional mini-story inspired only loosely by one trend. Invent original characters and places, clearly label the story as fiction in its description, and do not use real private people, existing movie or franchise characters, named film properties, or imitate an identifiable film.'
-    : 'Write a factual explainer using an evergreen, widely established fact. Trends and their linked headlines are unverified topic inspiration, not evidence. Do not claim that a current trend or news event is true based only on this feed. Omit any fact you cannot confidently state; invent no statistics, dates, quotes, or events.';
+    : 'Write an original faceless educational explainer using an evergreen, widely established fact. Open with an engaging hook and end with a clear takeaway. Trends and their linked headlines are unverified topic inspiration, not evidence. Do not claim that a current trend or news event is true based only on this feed. Omit any fact you cannot confidently state; invent no statistics, dates, quotes, or events.';
   const topicInstruction = format === 'cinematic'
     ? 'Choose a safe trend as loose inspiration for an original fictional story.'
     : 'Choose a safe topic for an evergreen factual explainer; do not report breaking news.';
@@ -27,7 +27,7 @@ Return ONLY valid JSON with this shape:
 }
 
 ${topicInstruction}
-Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a simple vector illustration and within three short lines. For fictional stories, describe a clear action that can be acted out by an original animated stick figure. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
+Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a simple vector illustration and within three short lines. For factual explainers, describe visuals that can be animated from simple vector shapes. For fictional stories, describe a clear action that can be acted out by an original animated stick figure. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
 
 Google Trends India results:
 ${JSON.stringify(trends.map(({ title, traffic, news }) => ({
@@ -362,6 +362,11 @@ export function createSceneSvg(story, scene, index, options = {}) {
   const title = textLines(story.topic, 25, 540, 300, 76, 'topic');
   const visual = textLines(scene.visual, 38, 540, 1165, 38, 'visual');
   const art = sceneIllustration(scene, 540, 765);
+  const animationPhase = ((options.frame ?? 0) / (options.frameCount ?? STORY_ANIMATION_FPS)) * Math.PI * 2;
+  const artScale = options.animated ? 1 + Math.sin(animationPhase) * 0.025 : 1;
+  const artX = options.animated ? Math.sin(animationPhase) * 10 : 0;
+  const artY = options.animated ? Math.cos(animationPhase) * 10 : 0;
+  const artTransform = `translate(${540 + artX} ${765 + artY}) scale(${artScale}) translate(-540 -765)`;
   const storyFigure = options.animated
     ? stickFigureSvg(options.frame ?? 0, options.frameCount ?? STORY_ANIMATION_FPS, 540, 492, accent)
     : '';
@@ -386,7 +391,7 @@ export function createSceneSvg(story, scene, index, options = {}) {
   <circle cx="980" cy="1050" r="300" fill="url(#glow)" opacity=".24"/>
   <text class="eyebrow" x="540" y="185">INDIA TREND EXPLAINER</text>
   ${title}
-  <g>${art}</g>
+  <g${options.animated ? ` transform="${artTransform}"` : ''}>${art}</g>
   ${storyFigure}
   <rect x="110" y="1080" width="800" height="190" rx="36" fill="#101831" fill-opacity=".52"/>
   ${visual}

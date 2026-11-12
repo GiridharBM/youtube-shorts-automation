@@ -60,6 +60,9 @@ test('builds separate original-fiction and fact-explainer prompts', () => {
   assert.match(cinematicPrompt, /no fixed scene count or video duration/);
   assert.match(cinematicPrompt, /one complete narration sentence/);
   assert.match(factsPrompt, /evergreen, widely established fact/);
+  assert.match(factsPrompt, /original faceless educational explainer/);
+  assert.match(factsPrompt, /engaging hook and end with a clear takeaway/);
+  assert.match(factsPrompt, /visuals that can be animated from simple vector shapes/);
   assert.match(factsPrompt, /not evidence/);
   assert.match(cinematicPrompt, /Science & space/);
   assert.throws(() => createStoryPrompt(trends, 'podcast'), /Unsupported Short format/);
@@ -121,6 +124,8 @@ test('animates story scenes with original stick figures', () => {
   const nextFrame = createSceneSvg(story, scene, 0, { animated: true, frame: 2, frameCount: 8 });
 
   assert.match(firstFrame, /class="story-figure"/);
+  assert.match(firstFrame, /<g transform="translate\(/);
+  assert.notEqual(firstFrame.match(/<g transform="([^"]+)"/)[1], nextFrame.match(/<g transform="([^"]+)"/)[1]);
   assert.notEqual(firstFrame, nextFrame);
   assert.doesNotMatch(createSceneSvg(story, scene, 0), /class="story-figure"/);
 });

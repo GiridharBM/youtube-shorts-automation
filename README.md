@@ -3,7 +3,7 @@
 The workflow creates two unlisted, sentence-paced Shorts from Google Trends:
 
 - **Story:** original vector scenes with an animated stick figure.
-- **Facts:** original vector illustrations with timed narration and captions.
+- **Facts:** original fact-based explainer scripts with code-rendered animated vector scenes, timed narration, and captions.
 
 OpenCode Go Beam writes scripts, Piper generates narration locally, and FFmpeg
 assembles the videos. The workflow does not use paid video-generation or TTS
