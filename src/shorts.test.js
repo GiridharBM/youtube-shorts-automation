@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getYouTubeApiErrorReason } from './engine.js';
-import { createAssCaptionTrack, createSceneSvg, createStoryPrompt, createThumbnailSvg, frameAlignedDuration, parseGoogleTrendsRss, parseStoryResponse } from './shorts.js';
+import { createAssCaptionTrack, createSceneArtPrompt, createSceneSvg, createStoryPrompt, createThumbnailSvg, frameAlignedDuration, parseGoogleTrendsRss, parseSceneArtResponse, parseStoryResponse } from './shorts.js';
 
 const story = {
   title: 'A quick science discovery',
@@ -74,6 +74,63 @@ test('builds separate original-fiction and fact-explainer prompts', () => {
   assert.throws(() => createStoryPrompt(trends, 'podcast'), /Unsupported Short format/);
 });
 
+test('builds a narration-matched vector-art prompt without requesting SVG markup', () => {
+  const prompt = createSceneArtPrompt(story);
+
+  assert.match(prompt, /specific objects, setting, and action/);
+  assert.match(prompt, /4–12 elements per scene/);
+  assert.match(prompt, /Do not emit SVG\/XML/);
+  assert.match(prompt, /Scientists discovered a fascinating detail in scene 1\./);
+  assert.throws(() => createSceneArtPrompt({ scenes: [] }), /at least one scene/);
+});
+
+test('validates scene-art plans and rejects unsafe or mismatched shapes', () => {
+  const artPlan = {
+    background: 'sky',
+    elements: [
+      { type: 'rect', x: 0, y: 300, width: 640, height: 180, fill: 'teal' },
+      { type: 'circle', cx: 250, cy: 210, r: 45, fill: 'gold', stroke: 'ink', strokeWidth: 5 },
+      { type: 'path', d: 'M 120 300 L 220 170 L 320 300 Z', fill: 'coral', stroke: 'ink', strokeWidth: 6 },
+      { type: 'line', x1: 80, y1: 340, x2: 560, y2: 340, stroke: 'white', strokeWidth: 4 }
+    ]
+  };
+  const parsed = parseSceneArtResponse(JSON.stringify({ scenes: [artPlan] }), 1);
+  assert.equal(parsed[0].background, 'sky');
+  assert.equal(parsed[0].elements[0].stroke, 'none');
+  assert.deepEqual(parsed[0].elements[2], {
+    type: 'path',
+    fill: 'coral',
+    stroke: 'ink',
+    d: 'M 120 300 L 220 170 L 320 300 Z',
+    strokeWidth: 6
+  });
+
+  assert.throws(
+    () => parseSceneArtResponse(JSON.stringify({ scenes: [artPlan] }), 2),
+    /exactly 2 scenes/
+  );
+  assert.throws(
+    () => parseSceneArtResponse(JSON.stringify({
+      scenes: [{
+        ...artPlan,
+        elements: Array.from({ length: 13 }, () => artPlan.elements[0])
+      }]
+    }), 1),
+    /4–12 vector elements/
+  );
+  assert.throws(
+    () => parseSceneArtResponse(JSON.stringify({
+      scenes: [{
+        ...artPlan,
+        elements: artPlan.elements.map((element, index) =>
+          index === 2 ? { ...element, d: 'M 10 10 Z" onload="alert(1)' } : element
+        )
+      }]
+    }), 1),
+    /unsafe path data/
+  );
+});
+
 test('rejects malformed or oversized story fields', () => {
   assert.throws(() => parseStoryResponse('not JSON'), /invalid story JSON/);
   assert.throws(
@@ -122,6 +179,32 @@ test('renders escaped, vertical SVG scenes with mobile-safe caption bounds', () 
   assert.match(svg, /width="1080" height="1920" viewBox="0 0 1080 1920"/);
   assert.match(svg, /Science &amp; space &lt;today&gt;/);
   assert.doesNotMatch(svg, /<text class="caption"/);
+});
+
+test('renders validated scene-specific art in videos and thumbnails', () => {
+  const art = parseSceneArtResponse(JSON.stringify({
+    scenes: [{
+      background: 'sky',
+      elements: [
+        { type: 'rect', x: 0, y: 300, width: 640, height: 180, fill: 'teal' },
+        { type: 'circle', cx: 250, cy: 210, r: 45, fill: 'gold', stroke: 'ink', strokeWidth: 5 },
+        { type: 'path', d: 'M 120 300 L 220 170 L 320 300 Z', fill: 'coral', stroke: 'ink', strokeWidth: 6 },
+        { type: 'line', x1: 80, y1: 340, x2: 560, y2: 340, stroke: 'white', strokeWidth: 4 }
+      ]
+    }]
+  }), 1)[0];
+  const scene = { ...story.scenes[0], art };
+  const svg = createSceneSvg(story, scene, 0, { animated: true, frame: 1, frameCount: 8 });
+  const thumbnail = createThumbnailSvg({
+    ...story,
+    scenes: [scene, ...story.scenes.slice(1)]
+  }, 'facts');
+
+  assert.match(svg, /<svg x="120" y="540" width="600" height="450" viewBox="0 0 640 480"/);
+  assert.match(svg, /fill="#8ecde2"/);
+  assert.match(svg, /M 120 300 L 220 170 L 320 300 Z/);
+  assert.doesNotMatch(svg, /<foreignObject|onload=|href=/);
+  assert.match(thumbnail, /<svg x="110" y="825" width="860" height="645"/);
 });
 
 test('animates story scenes with a shaded presenter and kinetic scene panels', () => {
