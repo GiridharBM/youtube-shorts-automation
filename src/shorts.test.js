@@ -78,7 +78,7 @@ test('builds a narration-matched vector-art prompt without requesting SVG markup
   const prompt = createSceneArtPrompt(story);
 
   assert.match(prompt, /specific objects, setting, and action/);
-  assert.match(prompt, /4–12 elements per scene/);
+  assert.match(prompt, /4–8 elements per scene/);
   assert.match(prompt, /Do not emit SVG\/XML/);
   assert.match(prompt, /Scientists discovered a fascinating detail in scene 1\./);
   assert.throws(() => createSceneArtPrompt({ scenes: [] }), /at least one scene/);
@@ -116,7 +116,7 @@ test('validates scene-art plans and rejects unsafe or mismatched shapes', () => 
         elements: Array.from({ length: 13 }, () => artPlan.elements[0])
       }]
     }), 1),
-    /4–12 vector elements/
+    /4–8 vector elements/
   );
   assert.throws(
     () => parseSceneArtResponse(JSON.stringify({
