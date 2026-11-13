@@ -478,7 +478,7 @@ export function createThumbnailSvg(story, format) {
   const category = isStory ? 'A SHORT STORY' : 'ONE CURIOUS FACT';
   const headline = textLines(story.title, 21, 540, 520, 96, 'headline');
   const art = isStory
-    ? stickFigureSvg(3, STORY_ANIMATION_FPS, 540, 1115, '#ffd166')
+    ? stickFigureSvg(story.scenes[0], 3, STORY_ANIMATION_FPS, 540, 1115, '#ffd166')
     : sceneIllustration(story.scenes[0], 540, 1330);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img">

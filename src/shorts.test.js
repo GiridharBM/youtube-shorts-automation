@@ -169,6 +169,7 @@ test('creates distinct vertical story and fact thumbnail artwork', () => {
   assert.match(storyThumbnail, /width="1080" height="1920"/);
   assert.match(storyThumbnail, /A SHORT STORY/);
   assert.match(storyThumbnail, /class="story-figure"/);
+  assert.doesNotMatch(storyThumbnail, /NaN|undefined/);
   assert.match(factsThumbnail, /ONE CURIOUS FACT/);
   assert.doesNotMatch(factsThumbnail, /class="story-figure"/);
   assert.notEqual(storyThumbnail, factsThumbnail);
