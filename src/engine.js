@@ -137,7 +137,7 @@ function renderVideo(story, format) {
           const framePath = path.join(workDir, `scene-${index + 1}-frame-${String(frame + 1).padStart(5, '0')}.png`);
           fs.writeFileSync(
             svgPath,
-            createSceneSvg(story, scene, index, { animated: true, frame, frameCount }),
+            createSceneSvg(story, scene, index, { animated: true, frame, frameCount, format }),
             'utf8'
           );
           execFileSync('rsvg-convert', [
@@ -287,7 +287,14 @@ export function getYouTubeApiErrorReason(error) {
     ...(Array.isArray(error?.errors) ? error.errors : []),
     ...(Array.isArray(error?.response?.data?.error?.errors) ? error.response.data.error.errors : [])
   ];
-  return apiErrors.find(apiError => typeof apiError?.reason === 'string')?.reason || '';
+  const apiReason = apiErrors.find(apiError => typeof apiError?.reason === 'string')?.reason;
+  if (apiReason) {
+    return apiReason;
+  }
+
+  return error?.response?.data?.error === 'invalid_grant' || error?.message === 'invalid_grant'
+    ? 'invalid_grant'
+    : '';
 }
 
 async function runner() {
@@ -328,12 +335,19 @@ async function runner() {
     } catch (error) {
       const reason = getYouTubeApiErrorReason(error);
       const uploadLimit = reason === 'uploadLimitExceeded';
+      const invalidRefreshToken = reason === 'invalid_grant';
+      const failureReason = invalidRefreshToken
+        ? 'YouTube rejected the refresh token (invalid_grant). Re-authorize the channel and update the YT_REFRESH_TOKEN GitHub Actions secret.'
+        : error.message;
       uploadResults.push({
         format: item.format,
         status: uploadLimit ? 'blocked' : 'failed',
-        reason: error.message,
+        reason: failureReason,
         apiReason: reason || undefined
       });
+      if (invalidRefreshToken) {
+        console.error('YouTube rejected YT_REFRESH_TOKEN (invalid_grant). Re-authorize the channel and update the GitHub Actions secret before rerunning.');
+      }
       if (uploadLimit) {
         uploadLimitReached = true;
         console.error('YouTube has reached this channel’s upload limit. Remaining rendered Shorts will be saved but not uploaded.');

@@ -24,3 +24,9 @@ artifact for manual use.
 
 Run the local helper tests with `npm test`. Rendering additionally requires
 FFmpeg, `rsvg-convert`, Piper, and the configured voice model.
+
+If a workflow run renders the Shorts but reports `invalid_grant` during upload,
+the YouTube OAuth refresh token has been rejected. Re-authorize the channel,
+replace the `YT_REFRESH_TOKEN` secret under the repository's **Settings →
+Secrets and variables → Actions**, and rerun the workflow. Do not put the token
+in source code or workflow logs.

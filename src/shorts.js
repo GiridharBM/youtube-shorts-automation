@@ -8,8 +8,8 @@ export function createStoryPrompt(trends, format) {
   }
 
   const formatInstructions = format === 'cinematic'
-    ? 'Write an original fictional mini-story inspired only loosely by one trend. Invent original characters and places, clearly label the story as fiction in its description, and do not use real private people, existing movie or franchise characters, named film properties, or imitate an identifiable film.'
-    : 'Write an original faceless educational explainer using an evergreen, widely established fact. Open with an engaging hook and end with a clear takeaway. Trends and their linked headlines are unverified topic inspiration, not evidence. Do not claim that a current trend or news event is true based only on this feed. Omit any fact you cannot confidently state; invent no statistics, dates, quotes, or events.';
+    ? 'Write an original fictional mini-story inspired only loosely by one trend. Give the protagonist a concrete goal, a complication, a decisive action, and an earned payoff. Keep the same character and important props recognizable across scenes. Invent original characters and places, clearly label the story as fiction in its description, and do not use real private people, existing movie or franchise characters, named film properties, or imitate an identifiable film.'
+    : 'Write an original faceless educational explainer using an evergreen, widely established fact. Open with an engaging hook, explain the idea with a concrete example, and end with a clear takeaway. Trends and their linked headlines are unverified topic inspiration, not evidence. Do not claim that a current trend or news event is true based only on this feed. Omit any fact you cannot confidently state; invent no statistics, dates, quotes, or events.';
   const topicInstruction = format === 'cinematic'
     ? 'Choose a safe trend as loose inspiration for an original fictional story.'
     : 'Choose a safe topic for an evergreen factual explainer; do not report breaking news.';
@@ -27,7 +27,7 @@ Return ONLY valid JSON with this shape:
 }
 
 ${topicInstruction}
-Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a simple vector illustration and within three short lines. For factual explainers, describe visuals that can be animated from simple vector shapes. For fictional stories, describe a clear action that can be acted out by an original animated stick figure. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
+Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a simple vector illustration and within three short lines. Describe a specific visible action, object, or diagram that directly illustrates that sentence; avoid abstract moods and repeated decorative scenes. For factual explainers, use visuals that can be animated from simple vector shapes. For fictional stories, describe a clear character action and setting, not just a pose. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
 
 Google Trends India results:
 ${JSON.stringify(trends.map(({ title, traffic, news }) => ({
@@ -266,6 +266,33 @@ ${events.join('\n')}
 function sceneIllustration(scene, centerX, centerY) {
   const subject = `${scene.visual} ${scene.narration}`.toLowerCase();
 
+  if (/football|soccer|offside|goal|pitch|striker|team|player/.test(subject)) {
+    const offside = /offside/.test(subject);
+    return `
+      <rect x="${centerX - 300}" y="${centerY - 190}" width="600" height="380" rx="24" fill="#28754f"/>
+      <rect x="${centerX - 270}" y="${centerY - 160}" width="540" height="320" rx="12" fill="#398d5e" stroke="#eaffef" stroke-width="8"/>
+      <path d="M${centerX} ${centerY - 160}v320M${centerX - 270} ${centerY - 70}h78v140h-78M${centerX + 270} ${centerY - 70}h-78v140h78" fill="none" stroke="#eaffef" stroke-width="7" opacity=".9"/>
+      <circle cx="${centerX}" cy="${centerY}" r="62" fill="none" stroke="#eaffef" stroke-width="7" opacity=".9"/>
+      <g fill="#ffd58d">
+        <circle cx="${centerX - 155}" cy="${centerY - 35}" r="25"/><path d="M${centerX - 185} ${centerY - 8}h60l16 92h-92z"/>
+        <circle cx="${centerX + 120}" cy="${centerY - 42}" r="25"/><path d="M${centerX + 90} ${centerY - 14}h60l16 92h-92z"/>
+      </g>
+      <g fill="#87d7ff">
+        <circle cx="${centerX + 30}" cy="${centerY - 10}" r="24"/><path d="M${centerX} ${centerY + 17}h60l14 80h-88z"/>
+      </g>
+      <circle cx="${centerX + 192}" cy="${centerY + 86}" r="24" fill="#fff5df" stroke="#18243d" stroke-width="7"/>
+      <path d="M${centerX + 192} ${centerY - 135}v270" stroke="${offside ? '#ff8f7a' : '#ffe38b'}" stroke-width="8" stroke-dasharray="14 12"/>`;
+  }
+
+  if (/stamp|mail|letter|envelope|postcard/.test(subject)) {
+    return `
+      <rect x="${centerX - 255}" y="${centerY - 155}" width="510" height="310" rx="28" fill="#fff1d2" stroke="#edb86a" stroke-width="12"/>
+      <path d="M${centerX - 238} ${centerY - 135}L${centerX} ${centerY + 40} ${centerX + 238} ${centerY - 135}" fill="none" stroke="#d99067" stroke-width="12"/>
+      <path d="M${centerX - 238} ${centerY + 135}L${centerX - 52} ${centerY - 8}M${centerX + 238} ${centerY + 135}L${centerX + 52} ${centerY - 8}" fill="none" stroke="#d99067" stroke-width="12"/>
+      <rect x="${centerX + 116}" y="${centerY - 112}" width="94" height="104" rx="10" fill="#ff8f7a" stroke="#a74958" stroke-width="8"/>
+      <path d="M${centerX + 132} ${centerY - 86}h62M${centerX + 132} ${centerY - 64}h62" stroke="#fff1d2" stroke-width="8" stroke-dasharray="8 8"/>`;
+  }
+
   if (/space|planet|moon|star|galaxy|orbit|cosmic/.test(subject)) {
     return `
       <circle cx="${centerX}" cy="${centerY}" r="150" fill="url(#glow)" opacity=".7"/>
@@ -309,26 +336,64 @@ function sceneIllustration(scene, centerX, centerY) {
     <circle cx="${centerX + 280}" cy="${centerY + 15}" r="12" fill="#fff"/>`;
 }
 
-function stickFigureSvg(frame, frameCount, centerX, headY, color = '#ffd166') {
+function stickFigureSvg(scene, frame, frameCount, centerX, headY, color = '#ffd166') {
+  const subject = `${scene.visual} ${scene.narration}`.toLowerCase();
+  const action = /\b(jump\w*|leap\w*|hop\w*|vault\w*)\b/.test(subject)
+    ? 'jump'
+    : /\b(run\w*|rush\w*|race\w*|sprint\w*|chase\w*|dash\w*)\b/.test(subject)
+    ? 'run'
+    : /\b(wave\w*|signal\w*|greet\w*)\b/.test(subject)
+      ? 'wave'
+      : /\b(reach\w*|grab\w*|take\w*|press\w*|pick\w*|pull\w*|push\w*)\b/.test(subject)
+        ? 'reach'
+        : /\b(celebrat\w*|cheer\w*|triumph\w*|rejoic\w*)\b/.test(subject)
+          ? 'celebrate'
+          : /\b(think\w*|wonder\w*|ponder\w*|consider\w*)\b/.test(subject)
+            ? 'think'
+            : 'walk';
   const phase = (frame / frameCount) * Math.PI * 2;
   const stride = Math.sin(phase);
-  const bounce = Math.abs(stride) * 13;
-  const x = centerX + stride * 20;
-  const head = headY + bounce;
+  const jump = action === 'jump' || action === 'celebrate'
+    ? Math.max(0, Math.sin(phase)) * 82
+    : 0;
+  const bounce = action === 'run'
+    ? Math.abs(stride) * 23
+    : action === 'walk'
+    ? Math.abs(stride) * 13
+    : jump;
+  const x = centerX + stride * (action === 'run' ? 32 : action === 'walk' ? 20 : 5);
+  const head = headY + (action === 'jump' || action === 'celebrate' ? -jump : bounce);
   const shoulderY = head + 125;
   const hipY = head + 290;
-  const leftFootX = x - 75 + stride * 86;
-  const rightFootX = x + 75 - stride * 86;
-  const leftFootY = head + 465 - Math.max(0, stride) * 30;
-  const rightFootY = head + 465 - Math.max(0, -stride) * 30;
-  const leftHandX = x - 142 - stride * 64;
-  const rightHandX = x + 142 + stride * 64;
-  const leftHandY = shoulderY + 92 + Math.max(0, stride) * 20;
-  const rightHandY = shoulderY + 92 + Math.max(0, -stride) * 20;
+  const legMotion = action === 'run' ? 1.25 : action === 'walk' ? 1 : 0.25;
+  const leftFootX = x - 75 + stride * 86 * legMotion;
+  const rightFootX = x + 75 - stride * 86 * legMotion;
+  const leftFootY = head + 465 - Math.max(0, stride) * 30 * legMotion;
+  const rightFootY = head + 465 - Math.max(0, -stride) * 30 * legMotion;
+  let leftHandX = x - 142 - stride * 64 * legMotion;
+  let rightHandX = x + 142 + stride * 64 * legMotion;
+  let leftHandY = shoulderY + 92 + Math.max(0, stride) * 20;
+  let rightHandY = shoulderY + 92 + Math.max(0, -stride) * 20;
+
+  if (action === 'jump' || action === 'celebrate') {
+    leftHandX = x - 118;
+    rightHandX = x + 118;
+    leftHandY = shoulderY - 100;
+    rightHandY = shoulderY - 100;
+  } else if (action === 'wave') {
+    rightHandY = shoulderY - 120 + Math.sin(phase * 2) * 16;
+    rightHandX = x + 120;
+  } else if (action === 'reach') {
+    rightHandY = shoulderY - 72;
+    rightHandX = x + 205;
+  } else if (action === 'think') {
+    rightHandY = shoulderY + 44;
+    rightHandX = x + 48;
+  }
 
   return `
     <ellipse cx="${centerX}" cy="${headY + 486}" rx="154" ry="24" fill="#080d20" opacity=".3"/>
-    <g class="story-figure" fill="none" stroke="#111831" stroke-width="31" stroke-linecap="round" stroke-linejoin="round">
+    <g class="story-figure" data-action="${action}" fill="none" stroke="#111831" stroke-width="31" stroke-linecap="round" stroke-linejoin="round">
       <path d="M${x} ${head + 65}V${hipY}"/>
       <path d="M${x - 8} ${shoulderY}L${leftHandX} ${leftHandY}"/>
       <path d="M${x + 8} ${shoulderY}L${rightHandX} ${rightHandY}"/>
@@ -336,7 +401,7 @@ function stickFigureSvg(frame, frameCount, centerX, headY, color = '#ffd166') {
       <path d="M${x + 8} ${hipY}L${rightFootX} ${rightFootY}"/>
       <path d="M${leftFootX} ${leftFootY}l-27 4M${rightFootX} ${rightFootY}l27 4"/>
     </g>
-    <g class="story-figure" fill="none" stroke="${color}" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <g class="story-figure" data-action="${action}" fill="none" stroke="${color}" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
       <path d="M${x} ${head + 65}V${hipY}"/>
       <path d="M${x - 8} ${shoulderY}L${leftHandX} ${leftHandY}"/>
       <path d="M${x + 8} ${shoulderY}L${rightHandX} ${rightHandY}"/>
@@ -367,8 +432,8 @@ export function createSceneSvg(story, scene, index, options = {}) {
   const artX = options.animated ? Math.sin(animationPhase) * 10 : 0;
   const artY = options.animated ? Math.cos(animationPhase) * 10 : 0;
   const artTransform = `translate(${540 + artX} ${765 + artY}) scale(${artScale}) translate(-540 -765)`;
-  const storyFigure = options.animated
-    ? stickFigureSvg(options.frame ?? 0, options.frameCount ?? STORY_ANIMATION_FPS, 540, 492, accent)
+  const storyFigure = options.animated && options.format !== 'facts'
+    ? stickFigureSvg(scene, options.frame ?? 0, options.frameCount ?? STORY_ANIMATION_FPS, 540, 492, accent)
     : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img">

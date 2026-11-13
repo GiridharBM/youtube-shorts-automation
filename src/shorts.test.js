@@ -56,12 +56,16 @@ test('builds separate original-fiction and fact-explainer prompts', () => {
   const factsPrompt = createStoryPrompt(trends, 'facts');
 
   assert.match(cinematicPrompt, /original fictional mini-story/);
+  assert.match(cinematicPrompt, /concrete goal, a complication, a decisive action, and an earned payoff/);
+  assert.match(cinematicPrompt, /Keep the same character and important props recognizable across scenes/);
   assert.match(cinematicPrompt, /do not use real private people, existing movie or franchise characters/);
   assert.match(cinematicPrompt, /no fixed scene count or video duration/);
   assert.match(cinematicPrompt, /one complete narration sentence/);
   assert.match(factsPrompt, /evergreen, widely established fact/);
   assert.match(factsPrompt, /original faceless educational explainer/);
-  assert.match(factsPrompt, /engaging hook and end with a clear takeaway/);
+  assert.match(factsPrompt, /engaging hook, explain the idea with a concrete example, and end with a clear takeaway/);
+  assert.match(factsPrompt, /explain the idea with a concrete example/);
+  assert.match(factsPrompt, /specific visible action, object, or diagram/);
   assert.match(factsPrompt, /visuals that can be animated from simple vector shapes/);
   assert.match(factsPrompt, /not evidence/);
   assert.match(cinematicPrompt, /Science & space/);
@@ -130,6 +134,34 @@ test('animates story scenes with original stick figures', () => {
   assert.doesNotMatch(createSceneSvg(story, scene, 0), /class="story-figure"/);
 });
 
+test('matches football facts with a field scene and story animation with the described action', () => {
+  const footballScene = {
+    narration: 'The striker waits offside before the pass.',
+    visual: 'A football attack with defenders and a marked line.'
+  };
+  const factsSvg = createSceneSvg(story, footballScene, 0, {
+    animated: true,
+    frame: 0,
+    frameCount: 8,
+    format: 'facts'
+  });
+  assert.match(factsSvg, /stroke-dasharray="14 12"/);
+  assert.doesNotMatch(factsSvg, /class="story-figure"/);
+
+  const storyScene = {
+    narration: 'She reaches to save the letter.',
+    visual: 'A child reaches for the red letter.'
+  };
+  const storySvg = createSceneSvg(story, storyScene, 0, {
+    animated: true,
+    frame: 0,
+    frameCount: 8,
+    format: 'cinematic'
+  });
+  assert.match(storySvg, /data-action="reach"/);
+  assert.match(storySvg, /width="510" height="310"/);
+});
+
 test('creates distinct vertical story and fact thumbnail artwork', () => {
   const storyThumbnail = createThumbnailSvg(story, 'cinematic');
   const factsThumbnail = createThumbnailSvg(story, 'facts');
@@ -150,6 +182,8 @@ test('recognizes YouTube upload-limit errors from API responses', () => {
     'uploadLimitExceeded'
   );
   assert.equal(getYouTubeApiErrorReason({ errors: [{ reason: 'forbidden' }] }), 'forbidden');
+  assert.equal(getYouTubeApiErrorReason(new Error('invalid_grant')), 'invalid_grant');
+  assert.equal(getYouTubeApiErrorReason({ response: { data: { error: 'invalid_grant' } } }), 'invalid_grant');
   assert.equal(getYouTubeApiErrorReason(new Error('network error')), '');
 });
 
