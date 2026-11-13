@@ -27,7 +27,7 @@ Return ONLY valid JSON with this shape:
 }
 
 ${topicInstruction}
-Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a simple vector illustration and within three short lines. Describe a specific visible action, object, or diagram that directly illustrates that sentence; avoid abstract moods and repeated decorative scenes. For factual explainers, use visuals that can be animated from simple vector shapes. For fictional stories, describe a clear character action and setting, not just a pose. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
+Create as many scenes as the story needs; there is no fixed scene count or video duration. Each scene must contain exactly one complete narration sentence and one distinct original visual. A scene stays on screen only while its own sentence is spoken, then the next scene begins. Keep each sentence natural, easy to pronounce, 5–9 words, and no longer than 80 characters so it works as a mobile caption. Keep each visual representable as a layered vector illustration and within three short lines. Describe a specific visible action, object, or diagram that directly illustrates that sentence; vary the framing and focal object, avoid abstract moods and repeated decorative scenes, and do not request words inside the artwork. For factual explainers, use visuals that can be animated from simple vector shapes. For fictional stories, describe a clear character action and setting, not just a pose. Make the script coherent from opening hook to conclusion; do not pad it to reach a target length.
 
 Google Trends India results:
 ${JSON.stringify(trends.map(({ title, traffic, news }) => ({
@@ -266,6 +266,21 @@ ${events.join('\n')}
 function sceneIllustration(scene, centerX, centerY) {
   const subject = `${scene.visual} ${scene.narration}`.toLowerCase();
 
+  if (/\b(ai|artificial intelligence|neural|computer|code|software|app|internet|data|robot|digital|screen|phone|api)\b|\b(machine|language|foundation) models?\b/.test(subject)) {
+    return `
+      <rect x="${centerX - 260}" y="${centerY - 180}" width="520" height="360" rx="34" fill="#173c4b" stroke="#142d3b" stroke-width="10"/>
+      <rect x="${centerX - 225}" y="${centerY - 145}" width="450" height="290" rx="20" fill="#e7f0e9"/>
+      <path d="M${centerX - 180} ${centerY - 72}h92M${centerX - 180} ${centerY - 38}h70M${centerX + 88} ${centerY - 75}h90M${centerX + 110} ${centerY - 41}h68" stroke="#82a8a0" stroke-width="12" stroke-linecap="round"/>
+      <rect x="${centerX - 76}" y="${centerY - 92}" width="152" height="184" rx="28" fill="#e86d4f"/>
+      <circle cx="${centerX}" cy="${centerY - 34}" r="22" fill="#fff2d6"/>
+      <path d="M${centerX - 32} ${centerY + 27}q32 -45 64 0v22h-64z" fill="#fff2d6"/>
+      <circle cx="${centerX - 151}" cy="${centerY + 80}" r="12" fill="#397f72"/>
+      <circle cx="${centerX + 160}" cy="${centerY + 80}" r="12" fill="#397f72"/>
+      <path d="M${centerX - 139} ${centerY + 80}h48M${centerX + 91} ${centerY + 80}h57" stroke="#397f72" stroke-width="8" stroke-linecap="round"/>
+      <path d="M${centerX - 115} ${centerY + 180}h230" stroke="#173c4b" stroke-width="16" stroke-linecap="round"/>
+      <path d="M${centerX - 72} ${centerY + 198}h144" stroke="#173c4b" stroke-width="18" stroke-linecap="round"/>`;
+  }
+
   if (/football|soccer|offside|goal|pitch|striker|team|player/.test(subject)) {
     const offside = /offside/.test(subject);
     return `
@@ -336,9 +351,10 @@ function sceneIllustration(scene, centerX, centerY) {
     <circle cx="${centerX + 280}" cy="${centerY + 15}" r="12" fill="#fff"/>`;
 }
 
-function stickFigureSvg(scene, frame, frameCount, centerX, headY, color = '#ffd166') {
+function storyAction(scene) {
   const subject = `${scene.visual} ${scene.narration}`.toLowerCase();
-  const action = /\b(jump\w*|leap\w*|hop\w*|vault\w*)\b/.test(subject)
+
+  return /\b(jump\w*|leap\w*|hop\w*|vault\w*)\b/.test(subject)
     ? 'jump'
     : /\b(run\w*|rush\w*|race\w*|sprint\w*|chase\w*|dash\w*)\b/.test(subject)
     ? 'run'
@@ -351,115 +367,131 @@ function stickFigureSvg(scene, frame, frameCount, centerX, headY, color = '#ffd1
           : /\b(think\w*|wonder\w*|ponder\w*|consider\w*)\b/.test(subject)
             ? 'think'
             : 'walk';
+}
+
+function storyPresenterSvg(scene, frame, frameCount, centerX, headY, scale = 1) {
+  const action = storyAction(scene);
   const phase = (frame / frameCount) * Math.PI * 2;
   const stride = Math.sin(phase);
-  const jump = action === 'jump' || action === 'celebrate'
-    ? Math.max(0, Math.sin(phase)) * 82
+  const lift = action === 'jump' || action === 'celebrate'
+    ? Math.max(0, stride) * 22
     : 0;
-  const bounce = action === 'run'
-    ? Math.abs(stride) * 23
-    : action === 'walk'
-    ? Math.abs(stride) * 13
-    : jump;
-  const x = centerX + stride * (action === 'run' ? 32 : action === 'walk' ? 20 : 5);
-  const head = headY + (action === 'jump' || action === 'celebrate' ? -jump : bounce);
-  const shoulderY = head + 125;
-  const hipY = head + 290;
-  const legMotion = action === 'run' ? 1.25 : action === 'walk' ? 1 : 0.25;
-  const leftFootX = x - 75 + stride * 86 * legMotion;
-  const rightFootX = x + 75 - stride * 86 * legMotion;
-  const leftFootY = head + 465 - Math.max(0, stride) * 30 * legMotion;
-  const rightFootY = head + 465 - Math.max(0, -stride) * 30 * legMotion;
-  let leftHandX = x - 142 - stride * 64 * legMotion;
-  let rightHandX = x + 142 + stride * 64 * legMotion;
-  let leftHandY = shoulderY + 92 + Math.max(0, stride) * 20;
-  let rightHandY = shoulderY + 92 + Math.max(0, -stride) * 20;
+  const bob = action === 'jump' || action === 'celebrate'
+    ? -lift
+    : Math.sin(phase) * 5;
+  const talk = 7 + Math.max(0, Math.sin(phase * 3)) * 11;
+  let leftHand = { x: -178 + stride * 18, y: 310 - stride * 14 };
+  let rightHand = { x: 178 - stride * 18, y: 310 + stride * 14 };
 
   if (action === 'jump' || action === 'celebrate') {
-    leftHandX = x - 118;
-    rightHandX = x + 118;
-    leftHandY = shoulderY - 100;
-    rightHandY = shoulderY - 100;
+    leftHand = { x: -164, y: 122 - lift };
+    rightHand = { x: 164, y: 122 - lift };
   } else if (action === 'wave') {
-    rightHandY = shoulderY - 120 + Math.sin(phase * 2) * 16;
-    rightHandX = x + 120;
+    rightHand = { x: 164, y: 104 + Math.sin(phase * 2) * 20 };
   } else if (action === 'reach') {
-    rightHandY = shoulderY - 72;
-    rightHandX = x + 205;
+    rightHand = { x: 222, y: 220 };
   } else if (action === 'think') {
-    rightHandY = shoulderY + 44;
-    rightHandX = x + 48;
+    rightHand = { x: 70, y: 139 };
   }
 
   return `
-    <ellipse cx="${centerX}" cy="${headY + 486}" rx="154" ry="24" fill="#080d20" opacity=".3"/>
-    <g class="story-figure" data-action="${action}" fill="none" stroke="#111831" stroke-width="31" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M${x} ${head + 65}V${hipY}"/>
-      <path d="M${x - 8} ${shoulderY}L${leftHandX} ${leftHandY}"/>
-      <path d="M${x + 8} ${shoulderY}L${rightHandX} ${rightHandY}"/>
-      <path d="M${x - 8} ${hipY}L${leftFootX} ${leftFootY}"/>
-      <path d="M${x + 8} ${hipY}L${rightFootX} ${rightFootY}"/>
-      <path d="M${leftFootX} ${leftFootY}l-27 4M${rightFootX} ${rightFootY}l27 4"/>
-    </g>
-    <g class="story-figure" data-action="${action}" fill="none" stroke="${color}" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M${x} ${head + 65}V${hipY}"/>
-      <path d="M${x - 8} ${shoulderY}L${leftHandX} ${leftHandY}"/>
-      <path d="M${x + 8} ${shoulderY}L${rightHandX} ${rightHandY}"/>
-      <path d="M${x - 8} ${hipY}L${leftFootX} ${leftFootY}"/>
-      <path d="M${x + 8} ${hipY}L${rightFootX} ${rightFootY}"/>
-    </g>
-    <circle cx="${x}" cy="${head}" r="66" fill="#fff5df" stroke="#111831" stroke-width="18"/>
-    <circle cx="${x - 22}" cy="${head - 7}" r="5" fill="#111831"/>
-    <circle cx="${x + 22}" cy="${head - 7}" r="5" fill="#111831"/>
-    <path d="M${x - 18} ${head + 22}q18 17 36 0" fill="none" stroke="#111831" stroke-width="7" stroke-linecap="round"/>`;
+    <g class="story-presenter" data-action="${action}" transform="translate(${centerX} ${headY + bob}) scale(${scale})">
+      <ellipse cx="0" cy="451" rx="186" ry="24" fill="#182e39" opacity=".2"/>
+      <g fill="none" stroke="#173c4b" stroke-width="62" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-99 224Q-142 257 ${leftHand.x} ${leftHand.y}"/>
+        <path d="M99 224Q142 257 ${rightHand.x} ${rightHand.y}"/>
+      </g>
+      <g fill="none" stroke="#e97856" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-99 224Q-142 257 ${leftHand.x} ${leftHand.y}"/>
+        <path d="M99 224Q142 257 ${rightHand.x} ${rightHand.y}"/>
+      </g>
+      <ellipse cx="${leftHand.x}" cy="${leftHand.y}" rx="29" ry="27" fill="url(#faceTone)" stroke="#a85d4d" stroke-width="5"/>
+      <ellipse cx="${rightHand.x}" cy="${rightHand.y}" rx="29" ry="27" fill="url(#faceTone)" stroke="#a85d4d" stroke-width="5"/>
+      <path d="M-117 220Q-151 260 -151 430Q0 472 151 430Q151 260 117 220Q68 185 0 202Q-68 185 -117 220Z" fill="url(#jacket)" stroke="#173c4b" stroke-width="9"/>
+      <path d="M-57 204L0 278 57 204M0 278V418" fill="none" stroke="#fff1d9" stroke-width="15" stroke-linejoin="round"/>
+      <path d="M-34 282l34 26 34-26" fill="none" stroke="#d5f0e8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M-40 167v62M40 167v62" stroke="#a85d4d" stroke-width="25" stroke-linecap="round"/>
+      <circle cx="-108" cy="83" r="22" fill="url(#faceTone)" stroke="#a85d4d" stroke-width="5"/>
+      <circle cx="108" cy="83" r="22" fill="url(#faceTone)" stroke="#a85d4d" stroke-width="5"/>
+      <circle cx="0" cy="81" r="111" fill="url(#faceTone)" stroke="#173c4b" stroke-width="8"/>
+      <path d="M-104 76Q-118-6-44-30Q-15-69 27-43Q82-58 105 13Q116 43 99 75Q69 44 45 38Q-10 12-55 54Q-82 78-104 76Z" fill="url(#hairTone)" stroke="#173c4b" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M-67 63q28-16 51 0M16 63q27-16 51 0" fill="none" stroke="#3a2a2b" stroke-width="8" stroke-linecap="round"/>
+      <ellipse cx="-39" cy="91" rx="19" ry="25" fill="#fffaf0"/>
+      <ellipse cx="39" cy="91" rx="19" ry="25" fill="#fffaf0"/>
+      <circle cx="-35" cy="96" r="11" fill="#203841"/>
+      <circle cx="43" cy="96" r="11" fill="#203841"/>
+      <circle cx="-39" cy="88" r="5" fill="#fff"/>
+      <circle cx="39" cy="88" r="5" fill="#fff"/>
+      <path d="M-8 119q8 8 16 0" fill="none" stroke="#b46d58" stroke-width="6" stroke-linecap="round"/>
+      <ellipse cx="0" cy="151" rx="21" ry="${talk}" fill="#713d42"/>
+      <path d="M-16 151q16 12 32 0" fill="none" stroke="#fff1d9" stroke-width="4" stroke-linecap="round"/>
+      <path d="M-83 111q16 12 30 3M53 114q15 9 29-3" fill="none" stroke="#d98b71" stroke-width="7" stroke-linecap="round" opacity=".65"/>
+    </g>`;
 }
 
 export function createSceneSvg(story, scene, index, options = {}) {
-  const palettes = [
-    ['#101a46', '#35256b', '#fc8fbd'],
-    ['#0c344d', '#155c70', '#78e4d2'],
-    ['#38204c', '#773968', '#ffc87d'],
-    ['#172f58', '#275c83', '#82d7ff'],
-    ['#263450', '#554278', '#b6a0ff'],
-    ['#153c46', '#246b6b', '#f7d879']
-  ];
-  const [start, end, accent] = palettes[index % palettes.length];
-  const title = textLines(story.topic, 25, 540, 300, 76, 'topic');
-  const visual = textLines(scene.visual, 38, 540, 1165, 38, 'visual');
-  const art = sceneIllustration(scene, 540, 765);
+  const accent = '#e97856';
+  const sceneCount = story.scenes.length;
+  const progress = Math.max(0, Math.min(1, (index + 1) / sceneCount));
+  const title = textLines(story.topic, 26, 82, 268, 72, 'topic');
+  const visual = textLines(scene.visual, 38, 112, 1372, 38, 'visual');
+  const art = sceneIllustration(scene, 420, 800);
   const animationPhase = ((options.frame ?? 0) / (options.frameCount ?? STORY_ANIMATION_FPS)) * Math.PI * 2;
-  const artScale = options.animated ? 1 + Math.sin(animationPhase) * 0.025 : 1;
-  const artX = options.animated ? Math.sin(animationPhase) * 10 : 0;
-  const artY = options.animated ? Math.cos(animationPhase) * 10 : 0;
-  const artTransform = `translate(${540 + artX} ${765 + artY}) scale(${artScale}) translate(-540 -765)`;
-  const storyFigure = options.animated && options.format !== 'facts'
-    ? stickFigureSvg(scene, options.frame ?? 0, options.frameCount ?? STORY_ANIMATION_FPS, 540, 492, accent)
+  const reveal = options.animated
+    ? Math.min(1, ((options.frame ?? 0) + 1) / Math.max(1, (options.frameCount ?? STORY_ANIMATION_FPS) * 0.18))
+    : 1;
+  const revealOffset = options.animated ? (1 - reveal) * 20 : 0;
+  const artScale = 0.96 + reveal * 0.04 + (options.animated ? Math.sin(animationPhase) * 0.012 : 0);
+  const artX = options.animated ? Math.sin(animationPhase) * 7 : 0;
+  const artY = options.animated ? Math.cos(animationPhase) * 7 : 0;
+  const artTransform = `translate(${420 + artX} ${800 + artY}) scale(${artScale}) translate(-420 -800)`;
+  const storyPresenter = options.animated && options.format !== 'facts'
+    ? storyPresenterSvg(scene, options.frame ?? 0, options.frameCount ?? STORY_ANIMATION_FPS, 810, 922, 0.62)
     : '';
+  const sequenceLabel = options.format === 'facts' ? 'FACT IN MOTION' : 'STORY SCENE';
+  const sceneNumber = String(index + 1).padStart(2, '0');
+  const sceneTotal = String(sceneCount).padStart(2, '0');
+  const titleReveal = `<g opacity="${reveal}" transform="translate(0 ${revealOffset})">${title}</g>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img">
   <title>${escapeXml(story.topic)} — scene ${index + 1}</title>
   <desc>${escapeXml(scene.visual)}. ${escapeXml(scene.narration)}</desc>
   <defs>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${start}"/><stop offset="1" stop-color="${end}"/></linearGradient>
-    <radialGradient id="glow"><stop stop-color="${accent}" stop-opacity=".85"/><stop offset="1" stop-color="${accent}" stop-opacity="0"/></radialGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#080c20" flood-opacity=".35"/></filter>
+    <pattern id="paperGrid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#60736f" stroke-opacity=".09" stroke-width="2"/></pattern>
+    <linearGradient id="featurePanel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dcebe8"/><stop offset="1" stop-color="#e8e7d8"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="${accent}" stop-opacity=".55"/><stop offset="1" stop-color="${accent}" stop-opacity="0"/></radialGradient>
+    <radialGradient id="faceTone" cx=".34" cy=".25" r=".78"><stop stop-color="#fff0d6"/><stop offset=".58" stop-color="#eaa982"/><stop offset="1" stop-color="#b96756"/></radialGradient>
+    <linearGradient id="hairTone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#61504a"/><stop offset=".5" stop-color="#342d34"/><stop offset="1" stop-color="#1b2932"/></linearGradient>
+    <linearGradient id="jacket" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f28b62"/><stop offset=".52" stop-color="#e97856"/><stop offset="1" stop-color="#a94e45"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#173c4b" flood-opacity=".2"/></filter>
     <style>
-      text{font-family:Arial, sans-serif;text-anchor:middle}
-      .eyebrow{fill:#d7eaff;font-size:30px;font-weight:700;letter-spacing:7px}
-      .topic{fill:#fff;font-size:62px;font-weight:700}
-      .visual{fill:#d7eaff;font-size:34px;font-weight:500}
-      .count{fill:#d7eaff;font-size:28px;font-weight:600;letter-spacing:4px}
+      text{font-family:"DejaVu Sans",Arial,sans-serif;text-anchor:middle}
+      .sequence{fill:#397f72;font-size:25px;font-weight:700;letter-spacing:3px}
+      .count{fill:#52656b;font-size:25px;font-weight:700;letter-spacing:2px}
+      .topic{fill:#173c4b;font-size:62px;font-weight:800;text-anchor:start}
+      .visual-label{fill:#397f72;font-size:24px;font-weight:700;letter-spacing:2px;text-anchor:start}
+      .visual{fill:#203b45;font-size:32px;font-weight:600;text-anchor:start}
     </style>
   </defs>
-  <rect width="1080" height="1920" fill="url(#background)"/>
-  <circle cx="130" cy="500" r="220" fill="url(#glow)" opacity=".34"/>
-  <circle cx="980" cy="1050" r="300" fill="url(#glow)" opacity=".24"/>
-  <text class="eyebrow" x="540" y="185">INDIA TREND EXPLAINER</text>
-  ${title}
+  <rect width="1080" height="1920" fill="#f5f0e3"/>
+  <rect width="1080" height="1920" fill="url(#paperGrid)"/>
+  <text class="sequence" x="82" y="126">${sequenceLabel}</text>
+  <text class="count" x="998" y="126">${sceneNumber} / ${sceneTotal}</text>
+  <path d="M82 160H998" stroke="#c7d0c8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M82 160H${82 + 916 * progress}" stroke="${accent}" stroke-width="7" stroke-linecap="round"/>
+  ${titleReveal}
+  <g opacity="${reveal}" transform="translate(0 ${revealOffset})">
+  <rect x="70" y="390" width="940" height="820" rx="34" fill="#fffdf7" stroke="#173c4b" stroke-width="5" filter="url(#shadow)"/>
+  <rect x="94" y="414" width="892" height="772" rx="24" fill="url(#featurePanel)"/>
+  <circle cx="420" cy="800" r="280" fill="url(#glow)" opacity=".5"/>
   <g${options.animated ? ` transform="${artTransform}"` : ''}>${art}</g>
-  ${storyFigure}
-  <rect x="110" y="1080" width="800" height="190" rx="36" fill="#101831" fill-opacity=".52"/>
+  ${storyPresenter}
+  </g>
+  <g opacity="${reveal}" transform="translate(0 ${revealOffset})">
+  <rect x="70" y="1236" width="940" height="228" rx="28" fill="#fffdf7" stroke="#173c4b" stroke-width="5" filter="url(#shadow)"/>
+  <text class="visual-label" x="112" y="1302">THE SCENE</text>
   ${visual}
+  </g>
 </svg>`;
 }
 
@@ -472,24 +504,27 @@ export function createThumbnailSvg(story, format) {
   }
 
   const isStory = format === 'cinematic';
-  const background = isStory ? '#171a35' : '#e8f1ec';
-  const foreground = isStory ? '#fff3d4' : '#153c4b';
-  const accent = isStory ? '#ff826e' : '#087f78';
+  const background = isStory ? '#f5f0e3' : '#e8f1ec';
+  const foreground = '#173c4b';
+  const accent = isStory ? '#e97856' : '#087f78';
   const category = isStory ? 'A SHORT STORY' : 'ONE CURIOUS FACT';
   const headline = textLines(story.title, 21, 540, 520, 96, 'headline');
   const art = isStory
-    ? stickFigureSvg(story.scenes[0], 3, STORY_ANIMATION_FPS, 540, 1115, '#ffd166')
+    ? storyPresenterSvg(story.scenes[0], 3, STORY_ANIMATION_FPS, 540, 1130, 0.9)
     : sceneIllustration(story.scenes[0], 540, 1330);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img">
   <title>${escapeXml(category)}: ${escapeXml(story.title)}</title>
   <desc>${escapeXml(story.scenes[0].visual)}</desc>
   <defs>
-    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${background}"/><stop offset="1" stop-color="${isStory ? '#2d254d' : '#c9e2d9'}"/></linearGradient>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${background}"/><stop offset="1" stop-color="${isStory ? '#e5dcc8' : '#c9e2d9'}"/></linearGradient>
     <radialGradient id="glow"><stop stop-color="${accent}" stop-opacity=".8"/><stop offset="1" stop-color="${accent}" stop-opacity="0"/></radialGradient>
+    <radialGradient id="faceTone" cx=".34" cy=".25" r=".78"><stop stop-color="#fff0d6"/><stop offset=".58" stop-color="#eaa982"/><stop offset="1" stop-color="#b96756"/></radialGradient>
+    <linearGradient id="hairTone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#61504a"/><stop offset=".5" stop-color="#342d34"/><stop offset="1" stop-color="#1b2932"/></linearGradient>
+    <linearGradient id="jacket" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f28b62"/><stop offset=".52" stop-color="#e97856"/><stop offset="1" stop-color="#a94e45"/></linearGradient>
     <style>
-      text{font-family:Arial,sans-serif;text-anchor:middle}
-      .category{fill:${isStory ? '#ffd166' : '#087f78'};font-size:38px;font-weight:700;letter-spacing:5px}
+      text{font-family:"DejaVu Sans",Arial,sans-serif;text-anchor:middle}
+      .category{fill:${accent};font-size:38px;font-weight:700;letter-spacing:5px}
       .headline{fill:${foreground};font-size:78px;font-weight:800}
     </style>
   </defs>

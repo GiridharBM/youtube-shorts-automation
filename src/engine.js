@@ -260,7 +260,7 @@ async function uploadToYouTube(filePath, thumbnailPath, story, format) {
   const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
   const title = `${story.title} #Shorts`.slice(0, 100);
   const formatNote = format === 'cinematic'
-    ? 'Original fictional mini-story with animated stick-figure scenes.'
+    ? 'Original fictional mini-story with code-rendered vector scenes and a shaded cartoon presenter.'
     : 'Original fact-based explainer with code-rendered animated vector scenes; review claims before sharing.';
   const description = `${story.description}\n\n${formatNote}\nTopic inspired by Google Trends India.\nVoice: Piper TTS, en_US-ljspeech-high. Voice model card: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/ljspeech/high (trained on the public-domain LJ Speech dataset).\n#shorts #facts #trending`;
 

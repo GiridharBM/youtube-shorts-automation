@@ -67,6 +67,8 @@ test('builds separate original-fiction and fact-explainer prompts', () => {
   assert.match(factsPrompt, /explain the idea with a concrete example/);
   assert.match(factsPrompt, /specific visible action, object, or diagram/);
   assert.match(factsPrompt, /visuals that can be animated from simple vector shapes/);
+  assert.match(factsPrompt, /layered vector illustration/);
+  assert.match(factsPrompt, /do not request words inside the artwork/);
   assert.match(factsPrompt, /not evidence/);
   assert.match(cinematicPrompt, /Science & space/);
   assert.throws(() => createStoryPrompt(trends, 'podcast'), /Unsupported Short format/);
@@ -122,16 +124,20 @@ test('renders escaped, vertical SVG scenes with mobile-safe caption bounds', () 
   assert.doesNotMatch(svg, /<text class="caption"/);
 });
 
-test('animates story scenes with original stick figures', () => {
+test('animates story scenes with a shaded presenter and kinetic scene panels', () => {
   const scene = story.scenes[0];
   const firstFrame = createSceneSvg(story, scene, 0, { animated: true, frame: 0, frameCount: 8 });
   const nextFrame = createSceneSvg(story, scene, 0, { animated: true, frame: 2, frameCount: 8 });
 
-  assert.match(firstFrame, /class="story-figure"/);
+  assert.match(firstFrame, /class="story-presenter"/);
+  assert.match(firstFrame, /id="faceTone"/);
+  assert.match(firstFrame, /THE SCENE/);
+  assert.match(firstFrame, /STORY SCENE/);
+  assert.match(firstFrame, /fill="#f5f0e3"/);
   assert.match(firstFrame, /<g transform="translate\(/);
   assert.notEqual(firstFrame.match(/<g transform="([^"]+)"/)[1], nextFrame.match(/<g transform="([^"]+)"/)[1]);
   assert.notEqual(firstFrame, nextFrame);
-  assert.doesNotMatch(createSceneSvg(story, scene, 0), /class="story-figure"/);
+  assert.doesNotMatch(createSceneSvg(story, scene, 0, { animated: true, format: 'facts' }), /class="story-presenter"/);
 });
 
 test('matches football facts with a field scene and story animation with the described action', () => {
@@ -159,7 +165,17 @@ test('matches football facts with a field scene and story animation with the des
     format: 'cinematic'
   });
   assert.match(storySvg, /data-action="reach"/);
+  assert.match(storySvg, /class="story-presenter"/);
   assert.match(storySvg, /width="510" height="310"/);
+
+  const technologySvg = createSceneSvg(story, {
+    narration: 'AI models can learn from examples.',
+    visual: 'A computer screen maps a neural network.'
+  }, 0, { animated: true, frame: 0, frameCount: 8, format: 'facts' });
+  assert.match(technologySvg, /class="sequence"/);
+  assert.match(technologySvg, /FACT IN MOTION/);
+  assert.match(technologySvg, /width="520" height="360"/);
+  assert.doesNotMatch(technologySvg, /class="story-presenter"/);
 });
 
 test('creates distinct vertical story and fact thumbnail artwork', () => {
@@ -168,7 +184,7 @@ test('creates distinct vertical story and fact thumbnail artwork', () => {
 
   assert.match(storyThumbnail, /width="1080" height="1920"/);
   assert.match(storyThumbnail, /A SHORT STORY/);
-  assert.match(storyThumbnail, /class="story-figure"/);
+  assert.match(storyThumbnail, /class="story-presenter"/);
   assert.doesNotMatch(storyThumbnail, /NaN|undefined/);
   assert.match(factsThumbnail, /ONE CURIOUS FACT/);
   assert.doesNotMatch(factsThumbnail, /class="story-figure"/);

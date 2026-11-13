@@ -2,13 +2,15 @@
 
 The workflow creates two unlisted, sentence-paced Shorts from Google Trends:
 
-- **Story:** original vector scenes with an animated stick figure.
+- **Story:** original scene panels with an animated, shaded cartoon presenter.
 - **Facts:** original fact-based explainer scripts with code-rendered animated vector scenes, timed narration, and captions.
 
-OpenCode Go Beam writes scripts, Piper generates narration locally, and FFmpeg
-assembles the videos. The workflow does not use paid video-generation or TTS
-APIs; free-tier availability, rate limits, and GitHub Actions usage limits still
-apply.
+OpenCode Go Beam writes scripts; it does not generate images or video. The
+presenter, scene art, and motion-graphics panels are rendered as SVG, Piper
+generates narration locally, and FFmpeg assembles the videos. This gives the
+story presenter a shaded 2.5D cartoon look, not full 3D or AI-generated footage.
+The workflow does not use paid video-generation or TTS APIs; free-tier
+availability, rate limits, and GitHub Actions usage limits still apply.
 
 Each run also saves both MP4s and their 9:16 JPEG thumbnails as a downloadable
 GitHub Actions artifact named `shorts-preview-<run id>` (kept for seven days).
