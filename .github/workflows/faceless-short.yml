@@ -1,0 +1,321 @@
+name: Generate faceless Short
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: Topic or brief for the Short
+        required: true
+        type: string
+      style:
+        description: Faceless Shorts style
+        required: true
+        default: inside-out
+        type: choice
+        options:
+          - inside-out
+          - deep-dive
+          - night-file
+          - stick-story
+          - paper-atlas
+          - tall-tale
+      model:
+        description: OpenCode Go model (must be present in the Go catalog)
+        required: true
+        default: opencode-go/glm-5.3-flash
+        type: choice
+        options:
+          - opencode-go/glm-5.3-flash
+          - opencode-go/deepseek-v4.1-flash
+          - opencode-go/glm-5.3
+          - opencode-go/kimi-k3
+          - opencode-go/kimi-k3.1-pro
+          - opencode-go/minimax-m3.1-flash
+          - opencode-go/qwen3.8-flash
+          - opencode-go/claude-haiku-5-5
+          - opencode-go/gpt-6-luna
+          - opencode-go/grok-4.7
+      upload_to_youtube:
+        description: Upload the finished Short to YouTube
+        required: true
+        default: false
+        type: boolean
+      youtube_visibility:
+        description: YouTube visibility when upload is enabled (private is the default)
+        required: true
+        default: private
+        type: choice
+        options:
+          - private
+          - unlisted
+          - public
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faceless-short-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Verify headless browser
+        run: |
+          for browser in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$browser" >/dev/null 2>&1; then
+              "$browser" --version
+              exit 0
+            fi
+          done
+          echo "::error::Google Chrome or Chromium is required by the faceless-shorts skill, but none was found."
+          exit 1
+
+      - name: Install OpenCode CLI
+        run: |
+          npm install --global @opencode/cli@2.3.0
+          opencode --help >/dev/null
+          echo "OpenCode CLI 2.3.0 installed."
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Run helper tests
+        run: npm test
+
+      - name: Verify OpenCode Go model access
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_DISABLE_FREE_MODELS: '1'
+          MODEL: ${{ inputs.model }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENCODE_API_KEY:-}" ]; then
+            echo "::error::The OPENCODE_API_KEY repository secret is not set."
+            exit 1
+          fi
+          available="$(opencode models --standalone)"
+          if ! grep -Fxq "$MODEL" <<< "$available"; then
+            echo "::error::Model '$MODEL' is not available to this OpenCode Go key. No fallback model will be used."
+            echo "$available" | sed 's/^/  /'
+            exit 1
+          fi
+          echo "Using $MODEL"
+
+      - name: Prepare faceless-shorts skill
+        timeout-minutes: 30
+        run: |
+          chmod +x .opencode/skills/faceless-shorts/scripts/*.sh .opencode/skills/faceless-shorts/scripts/py
+          bash .opencode/skills/faceless-shorts/scripts/setup.sh
+
+      - name: Generate the Short
+        timeout-minutes: 75
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_DISABLE_FREE_MODELS: '1'
+          MODEL: ${{ inputs.model }}
+          STYLE: ${{ inputs.style }}
+          TOPIC: ${{ inputs.topic }}
+          SHORT_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          GENERATED_ROOT: ${{ github.workspace }}/.generated
+          SHORT_DIR: ${{ github.workspace }}/.generated/ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GENERATED_ROOT"
+          prompt_file="$(mktemp)"
+          trap 'rm -f "$prompt_file"' EXIT
+
+          node --input-type=module - "$prompt_file" <<'NODE'
+          import fs from 'node:fs';
+
+          const out = process.argv[2];
+          const { STYLE, TOPIC, SHORT_NAME, GENERATED_ROOT, SHORT_DIR } = process.env;
+          if (!STYLE || !TOPIC || !SHORT_NAME || !GENERATED_ROOT || !SHORT_DIR) {
+            throw new Error('Missing generation prompt environment.');
+          }
+
+          const prompt = `@faceless-shorts
+
+          You are running non-interactively in GitHub Actions. Use the faceless-shorts skill at .opencode/skills/faceless-shorts to produce exactly one finished vertical Short.
+
+          Style: ${STYLE}
+          Topic: ${TOPIC}
+          Project name: ${SHORT_NAME}
+          Project directory: ${SHORT_DIR}
+          Generated root: ${GENERATED_ROOT}
+
+          Rules:
+          - Do not ask questions or wait for approval. The skill's "Build it?" step is pre-approved.
+          - Read .opencode/skills/faceless-shorts/styles/${STYLE}/STYLE.md in full before planning.
+          - Do not create the project directory yourself. Run: bash .opencode/skills/faceless-shorts/scripts/new_video.sh ${STYLE} ${SHORT_NAME} --dir ${GENERATED_ROOT}
+          - Use the skill defaults for voice, music, end line, and length unless the style requires otherwise.
+          - Treat the topic as the brief. If it asks you to pick ideas, choose one idea and proceed.
+          - Write an original script. Verify every factual claim against reliable sources and record the sources in script.json. Do not invent facts, quotes, dates, or statistics.
+          - Run the skill's QA (capture.mjs check, contact sheet, inspect frames) before the final render. Fix what you find.
+          - This is a headless runner: do not try to open the MP4 or any GUI application.
+          - For 3D styles (deep-dive, night-file, tall-tale), use the skill's software-rendering settings: SOFTWARE_GL=1, QS='&res=0.6&aa=0&shadow=1024', FPS=24.
+          - Render the final MP4 to ${SHORT_DIR}/renders/final.mp4.
+          - Export a 9:16 JPEG cover/thumbnail to ${SHORT_DIR}/renders/thumbnail.jpg. Inspect the frame first; avoid black/fade frames and frames where captions cover the subject.
+          - Do not upload, commit, push, or modify the repository. Keep project outputs under ${GENERATED_ROOT}; temporary files and the skill's model cache are fine.
+          - End with exactly these two lines:
+          RESULT_MP4=${SHORT_DIR}/renders/final.mp4
+          RESULT_THUMBNAIL=${SHORT_DIR}/renders/thumbnail.jpg
+          `;
+
+          fs.writeFileSync(out, prompt, 'utf8');
+          NODE
+
+          opencode run --standalone --model "$MODEL" --agent build --auto --archived "$(cat "$prompt_file")"
+
+      - name: Collect MP4 and thumbnail
+        if: always()
+        env:
+          SHORT_DIR: ${{ github.workspace }}/.generated/ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+
+          mp4="$SHORT_DIR/renders/final.mp4"
+          thumb="$SHORT_DIR/renders/thumbnail.jpg"
+
+          if [ ! -s "$mp4" ]; then
+            echo "::error::Generation did not produce $mp4"
+            find "$SHORT_DIR" -maxdepth 4 -type f 2>/dev/null | sed 's/^/  /' || true
+            exit 1
+          fi
+
+          if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$mp4" >/dev/null; then
+            echo "::error::The generated MP4 is not readable by ffprobe."
+            exit 1
+          fi
+
+          duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$mp4")"
+          if ! awk -v d="$duration" 'BEGIN { if (d <= 0.5 || d > 180) exit 1 }'; then
+            echo "::error::The generated video duration is ${duration}s; a Short must be longer than 0.5s and no longer than 180s."
+            exit 1
+          fi
+
+          dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$mp4")"
+          width="${dimensions%x*}"
+          height="${dimensions#*x}"
+          if [ -z "$width" ] || [ -z "$height" ] || [ "$height" -le "$width" ]; then
+            echo "::error::The generated video is not vertical (detected ${dimensions:-unknown}); a Short must be portrait."
+            exit 1
+          fi
+
+          if ! ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of default=noprint_wrappers=1:nokey=1 "$mp4" | grep -qx audio; then
+            echo "::error::The generated MP4 has no audio stream; narration was not mixed."
+            exit 1
+          fi
+
+          if ! ffmpeg -v info -i "$mp4" -af volumedetect -vn -f null - 2>&1 | awk '/mean_volume/ { found=1; if ($5 + 0 <= -50) bad=1 } END { exit (found && !bad ? 0 : 1) }'; then
+            echo "::error::The generated MP4 audio is silent or could not be measured."
+            exit 1
+          fi
+
+          if [ ! -s "$thumb" ]; then
+            seek="$(awk -v d="$duration" 'BEGIN { s = d / 2; if (s > 2) s = 2; if (s < 0) s = 0; printf "%.2f", s }')"
+            ffmpeg -v error -ss "$seek" -i "$mp4" -frames:v 1 -q:v 2 -y "$thumb"
+            echo "::warning::The agent did not write renders/thumbnail.jpg; extracted a frame at ${seek}s instead."
+          fi
+
+          if ! ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of default=noprint_wrappers=1 "$thumb" >/dev/null; then
+            echo "::error::The generated thumbnail is not a readable image."
+            exit 1
+          fi
+
+          thumb_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$thumb")"
+          thumb_width="${thumb_dimensions%x*}"
+          thumb_height="${thumb_dimensions#*x}"
+          if [ -z "$thumb_width" ] || [ -z "$thumb_height" ] || [ "$thumb_height" -le "$thumb_width" ]; then
+            echo "::error::The thumbnail is not portrait (detected ${thumb_dimensions:-unknown}); Shorts thumbnails should be 9:16."
+            exit 1
+          fi
+
+          thumb_bytes="$(stat -c%s "$thumb")"
+          if [ "$thumb_bytes" -gt 52428800 ]; then
+            echo "::error::The thumbnail is larger than YouTube's 50 MB API limit."
+            exit 1
+          fi
+
+          cp "$mp4" artifacts/short.mp4
+          cp "$thumb" artifacts/thumbnail.jpg
+          cp "$SHORT_DIR/script.json" artifacts/script.json
+
+          if [ -s "$SHORT_DIR/review/all.jpg" ]; then
+            cp "$SHORT_DIR/review/all.jpg" artifacts/contact-sheet.jpg
+          fi
+
+          echo "MP4: $mp4"
+          echo "Thumbnail: $thumb (${thumb_bytes} bytes)"
+
+      - name: Upload to YouTube
+        if: ${{ inputs.upload_to_youtube == true && success() }}
+        timeout-minutes: 50
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          STYLE: ${{ inputs.style }}
+          VISIBILITY: ${{ inputs.youtube_visibility }}
+        run: |
+          set -euo pipefail
+          if [ "$VISIBILITY" != "private" ] && [ "$VISIBILITY" != "unlisted" ] && [ "$VISIBILITY" != "public" ]; then
+            echo "::error::Invalid youtube_visibility '$VISIBILITY'. Use private, unlisted, or public."
+            exit 1
+          fi
+          node scripts/youtube-upload.mjs \
+            --video artifacts/short.mp4 \
+            --thumbnail artifacts/thumbnail.jpg \
+            --metadata artifacts/script.json \
+            --style "$STYLE" \
+            --privacy "$VISIBILITY" \
+            --report artifacts/youtube-upload.json
+
+      - name: Upload MP4 and thumbnail artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faceless-short-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Write job summary
+        if: always()
+        env:
+          STYLE: ${{ inputs.style }}
+          MODEL: ${{ inputs.model }}
+          UPLOAD_REQUESTED: ${{ inputs.upload_to_youtube }}
+        run: |
+          {
+            echo "## Faceless Short"
+            echo ""
+            echo "- Style: \`$STYLE\`"
+            echo "- Model: \`$MODEL\`"
+            echo "- YouTube upload requested: \`$UPLOAD_REQUESTED\`"
+            echo "- Artifact: \`faceless-short-${{ github.run_id }}-${{ github.run_attempt }}\`"
+            echo "- Download: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"

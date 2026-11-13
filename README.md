@@ -21,10 +21,11 @@ upload. If YouTube rejects an upload because the channel reached its limit, the
 pipeline still renders both Shorts, skips further upload attempts for that run,
 and preserves all outputs; the upload step remains failed so the limit is
 visible in Actions.
-YouTube's current Shorts guidance requires applying a custom thumbnail in
-YouTube Studio on a computer. The Data API documents general thumbnail uploads
-but not Shorts-specific support, so the generated images are included in the
-artifact for manual use.
+YouTube's Help Center still describes adding Shorts thumbnails in YouTube
+Studio. The Data API's `thumbnails.set` reference now explicitly supports Shorts
+when it is called after processing succeeds; the manual `faceless-short.yml`
+workflow uses that method and verifies the API response. The daily pipeline
+still includes its thumbnails in the artifact for manual use.
 
 Run the local helper tests with `npm test`. Rendering additionally requires
 FFmpeg, `rsvg-convert`, Piper, and the configured voice model.
@@ -34,3 +35,11 @@ the YouTube OAuth refresh token has been rejected. Re-authorize the channel,
 replace the `YT_REFRESH_TOKEN` secret under the repository's **Settings →
 Secrets and variables → Actions**, and rerun the workflow. Do not put the token
 in source code or workflow logs.
+
+## Manual faceless-shorts workflow
+
+`.github/workflows/faceless-short.yml` is a separate, manually triggered workflow that generates one Short
+with the vendored [`faceless-shorts`](.opencode/skills/faceless-shorts/SKILL.md) skill, using OpenCode Go.
+It always saves the MP4 and thumbnail as a workflow artifact and can optionally upload them to YouTube.
+See [`docs/faceless-shorts-ci.md`](docs/faceless-shorts-ci.md) for the Go credential, YouTube OAuth
+setup, runner requirements, inputs, and artifact locations. The daily `pipeline.yml` workflow is unchanged.
