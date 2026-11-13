@@ -31,7 +31,8 @@ Return ONLY valid JSON in this exact shape:
       "elements": [
         { "type": "rect", "x": 0, "y": 350, "width": 640, "height": 130, "fill": "teal" },
         { "type": "circle", "cx": 300, "cy": 200, "r": 40, "fill": "gold", "stroke": "ink", "strokeWidth": 5 },
-        { "type": "path", "d": "M 100 300 L 220 180 L 340 300 Z", "fill": "coral", "stroke": "ink", "strokeWidth": 5 }
+        { "type": "path", "d": "M 100 300 L 220 180 L 340 300 Z", "fill": "coral", "stroke": "ink", "strokeWidth": 5 },
+        { "type": "line", "x1": 80, "y1": 400, "x2": 560, "y2": 400, "stroke": "white", "strokeWidth": 4 }
       ]
     }
   ]

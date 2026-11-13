@@ -79,6 +79,7 @@ test('builds a narration-matched vector-art prompt without requesting SVG markup
 
   assert.match(prompt, /specific objects, setting, and action/);
   assert.match(prompt, /4–8 elements per scene/);
+  assert.match(prompt, /"type": "line"/);
   assert.match(prompt, /Do not emit SVG\/XML/);
   assert.match(prompt, /Scientists discovered a fascinating detail in scene 1\./);
   assert.throws(() => createSceneArtPrompt({ scenes: [] }), /at least one scene/);
