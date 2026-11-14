@@ -61,9 +61,15 @@ on:
           - private
           - unlisted
           - public
+      upload_from_artifact_id:
+        description: Skip generation and upload the videos from an earlier run artifact id
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: faceless-shorts-${{ github.ref }}
@@ -89,10 +95,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install ffmpeg
+      - name: Install ffmpeg and unzip
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg unzip
 
       - name: Verify headless browser
         run: |
@@ -118,6 +124,7 @@ jobs:
         run: npm test
 
       - name: Verify OpenCode Go model access
+        if: ${{ inputs.upload_from_artifact_id == '' }}
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENCODE_DISABLE_FREE_MODELS: '1'
@@ -137,12 +144,14 @@ jobs:
           echo "Using $MODEL"
 
       - name: Prepare faceless-shorts skill
+        if: ${{ inputs.upload_from_artifact_id == '' }}
         timeout-minutes: 30
         run: |
           chmod +x .opencode/skills/faceless-shorts/scripts/*.sh .opencode/skills/faceless-shorts/scripts/py
           bash .opencode/skills/faceless-shorts/scripts/setup.sh
 
       - name: Generate the fact short and the story short
+        if: ${{ inputs.upload_from_artifact_id == '' }}
         timeout-minutes: 210
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -156,6 +165,15 @@ jobs:
         run: |
           set -uo pipefail
           mkdir -p "$GENERATED_ROOT"
+
+          # Web search needs an interactive provider choice, which CI cannot answer, and a
+          # cancelled tool call aborts the whole run. Turn the tool off instead.
+          cat > .opencode/opencode.json <<'JSON'
+          {
+            "$schema": "https://opencode.ai/config.json",
+            "websearch": false
+          }
+          JSON
 
           node --input-type=module - "$GENERATED_ROOT" <<'NODE'
           import fs from 'node:fs';
@@ -172,6 +190,7 @@ jobs:
           - Do not create the project directory yourself. Run: bash .opencode/skills/faceless-shorts/scripts/new_video.sh <style> <project-name> --dir ${root}
           - Run every project command with the project directory as the working directory.
           - Use the skill defaults: voice am_michael, the built-in music bed that fits the topic, a 30-45 second length, and the style's end line.
+          - Web search is switched off in this environment. Never call a Web Search tool; it aborts the run. To check a fact, use WebFetch on a specific URL (an official page, for example). If a fetch fails, carry on without that source and do not claim you verified it.
 
           Script quality bar. This is what separates a good short from a bad one, so hold to it:
           - About 90-110 spoken words for a 30-45 s short, split into 10-12 lines.
@@ -264,12 +283,51 @@ jobs:
           opencode run --standalone --model "$MODEL" --agent build --auto --archived "$(cat "$GENERATED_ROOT/story-prompt.txt")" || story_status=$?
 
           if [ "$fact_status" -ne 0 ] || [ "$story_status" -ne 0 ]; then
-            echo "::error::Generation failed (fact exit $fact_status, story exit $story_status)."
-            exit 1
+            echo "::warning::An OpenCode run exited non-zero (fact $fact_status, story $story_status). The collection step decides whether usable videos were produced."
           fi
 
+      - name: Download an earlier run artifact
+        if: ${{ inputs.upload_from_artifact_id != '' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ inputs.upload_from_artifact_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::upload_from_artifact_id must be a numeric artifact id, got '$ARTIFACT_ID'."
+            exit 1
+          fi
+          mkdir -p artifacts
+          curl -sSL --fail \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" \
+            -o "$RUNNER_TEMP/artifact.zip"
+          unzip -o -q "$RUNNER_TEMP/artifact.zip" -d artifacts
+
+          # upload-artifact can nest files in a directory; normalise them to artifacts/<kind>-<name>.
+          for kind in fact story; do
+            for suffix in short.mp4 thumbnail.jpg script.json contact-sheet.jpg; do
+              name="$kind-$suffix"
+              if [ ! -s "artifacts/$name" ]; then
+                found="$(find artifacts -type f -name "$name" | head -1)"
+                if [ -n "$found" ]; then
+                  mv "$found" "artifacts/$name"
+                fi
+              fi
+            done
+          done
+
+          ls -l artifacts
+          for kind in fact story; do
+            if [ ! -s "artifacts/$kind-short.mp4" ]; then
+              echo "::error::The artifact does not contain $kind-short.mp4."
+              exit 1
+            fi
+          done
+
       - name: Collect both MP4s and thumbnails
-        if: always()
+        if: ${{ always() && inputs.upload_from_artifact_id == '' }}
         env:
           SHORT_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}
           GENERATED_ROOT: ${{ github.workspace }}/.generated
@@ -277,6 +335,10 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           failed=0
+
+          probe_size() {
+            ffprobe -v error -select_streams v:0 -show_entries "stream=$1" -of default=noprint_wrappers=1:nokey=1 "$2" | head -1
+          }
 
           collect_one() {
             label="$1"
@@ -298,11 +360,10 @@ jobs:
               return 0
             fi
 
-            dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$mp4")"
-            width="${dimensions%x*}"
-            height="${dimensions#*x}"
-            if [ -z "$width" ] || [ -z "$height" ] || [ "$height" -le "$width" ]; then
-              echo "::error::The $label video is not vertical (detected ${dimensions:-unknown}); a Short must be portrait."
+            width="$(probe_size width "$mp4")"
+            height="$(probe_size height "$mp4")"
+            if ! [[ "$width" =~ ^[0-9]+$ ]] || ! [[ "$height" =~ ^[0-9]+$ ]] || [ "$height" -le "$width" ]; then
+              echo "::error::The $label video is not vertical (detected ${width:-?}${height:+x$height}); a Short must be portrait."
               failed=1
               return 0
             fi
@@ -331,11 +392,10 @@ jobs:
               return 0
             fi
 
-            thumb_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$thumb")"
-            thumb_width="${thumb_dimensions%x*}"
-            thumb_height="${thumb_dimensions#*x}"
-            if [ -z "$thumb_width" ] || [ -z "$thumb_height" ] || [ "$thumb_height" -le "$thumb_width" ]; then
-              echo "::error::The $label thumbnail is not portrait (detected ${thumb_dimensions:-unknown}); Shorts thumbnails should be 9:16."
+            thumb_width="$(probe_size width "$thumb")"
+            thumb_height="$(probe_size height "$thumb")"
+            if ! [[ "$thumb_width" =~ ^[0-9]+$ ]] || ! [[ "$thumb_height" =~ ^[0-9]+$ ]] || [ "$thumb_height" -le "$thumb_width" ]; then
+              echo "::error::The $label thumbnail is not portrait (detected ${thumb_width:-?}x${thumb_height:-?}); Shorts thumbnails should be 9:16."
               failed=1
               return 0
             fi
@@ -356,7 +416,7 @@ jobs:
               cp "$dir/review/all.jpg" "artifacts/$label-contact-sheet.jpg"
             fi
 
-            echo "$label short: $mp4 (${duration}s), thumbnail ${thumb_bytes} bytes"
+            echo "$label short: $mp4 (${duration}s, ${width}x${height}), thumbnail ${thumb_bytes} bytes"
           }
 
           collect_one fact "$GENERATED_ROOT/$SHORT_NAME-fact"
@@ -365,7 +425,7 @@ jobs:
           exit $failed
 
       - name: Upload both shorts to YouTube
-        if: ${{ inputs.upload_to_youtube == true && success() }}
+        if: ${{ inputs.upload_to_youtube == true }}
         timeout-minutes: 90
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -375,29 +435,46 @@ jobs:
           STORY_STYLE: ${{ inputs.story_style }}
           VISIBILITY: ${{ inputs.youtube_visibility }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ "$VISIBILITY" != "private" ] && [ "$VISIBILITY" != "unlisted" ] && [ "$VISIBILITY" != "public" ]; then
             echo "::error::Invalid youtube_visibility '$VISIBILITY'. Use private, unlisted, or public."
             exit 1
           fi
 
+          uploaded=0
           fact_status=0
-          node scripts/youtube-upload.mjs \
-            --video artifacts/fact-short.mp4 \
-            --thumbnail artifacts/fact-thumbnail.jpg \
-            --metadata artifacts/fact-script.json \
-            --style "$FACT_STYLE" \
-            --privacy "$VISIBILITY" \
-            --report artifacts/fact-upload.json || fact_status=$?
-
           story_status=0
-          node scripts/youtube-upload.mjs \
-            --video artifacts/story-short.mp4 \
-            --thumbnail artifacts/story-thumbnail.jpg \
-            --metadata artifacts/story-script.json \
-            --style "$STORY_STYLE" \
-            --privacy "$VISIBILITY" \
-            --report artifacts/story-upload.json || story_status=$?
+
+          if [ -s artifacts/fact-short.mp4 ]; then
+            node scripts/youtube-upload.mjs \
+              --video artifacts/fact-short.mp4 \
+              --thumbnail artifacts/fact-thumbnail.jpg \
+              --metadata artifacts/fact-script.json \
+              --style "$FACT_STYLE" \
+              --privacy "$VISIBILITY" \
+              --report artifacts/fact-upload.json || fact_status=$?
+            uploaded=$((uploaded + 1))
+          else
+            echo "::warning::No fact video to upload; skipping."
+          fi
+
+          if [ -s artifacts/story-short.mp4 ]; then
+            node scripts/youtube-upload.mjs \
+              --video artifacts/story-short.mp4 \
+              --thumbnail artifacts/story-thumbnail.jpg \
+              --metadata artifacts/story-script.json \
+              --style "$STORY_STYLE" \
+              --privacy "$VISIBILITY" \
+              --report artifacts/story-upload.json || story_status=$?
+            uploaded=$((uploaded + 1))
+          else
+            echo "::warning::No story video to upload; skipping."
+          fi
+
+          if [ "$uploaded" -eq 0 ]; then
+            echo "::error::YouTube upload was requested but no video was available to upload."
+            exit 1
+          fi
 
           if [ "$fact_status" -ne 0 ] || [ "$story_status" -ne 0 ]; then
             echo "::error::A YouTube upload failed (fact exit $fact_status, story exit $story_status). See artifacts/*-upload.json."
