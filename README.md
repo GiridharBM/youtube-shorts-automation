@@ -38,8 +38,11 @@ in source code or workflow logs.
 
 ## Manual faceless-shorts workflow
 
-`.github/workflows/faceless-short.yml` is a separate, manually triggered workflow that generates one Short
-with the vendored [`faceless-shorts`](.opencode/skills/faceless-shorts/SKILL.md) skill, using OpenCode Go.
-It always saves the MP4 and thumbnail as a workflow artifact and can optionally upload them to YouTube.
+`.github/workflows/faceless-short.yml` is a separate, manually triggered workflow that generates **two**
+Shorts with the vendored [`faceless-shorts`](.opencode/skills/faceless-shorts/SKILL.md) skill, using
+OpenCode Go: one factual explainer and one story. It always saves both MP4s and thumbnails as a workflow
+artifact and can optionally upload them to YouTube.
 See [`docs/faceless-shorts-ci.md`](docs/faceless-shorts-ci.md) for the Go credential, YouTube OAuth
-setup, runner requirements, inputs, and artifact locations. The daily `pipeline.yml` workflow is unchanged.
+setup, runner requirements, inputs, artifact locations, and how the legacy pipeline differs. The legacy
+`pipeline.yml` workflow (Piper + rsvg renderer) is unchanged apart from its display name and does not use
+the skill.

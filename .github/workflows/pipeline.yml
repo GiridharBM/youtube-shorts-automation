@@ -1,4 +1,8 @@
-name: Continuous Autonomous Shorts Pipeline
+# Legacy renderer: Piper TTS + rsvg vector scenes. It does NOT use the faceless-shorts skill
+# and it uploads its own 10-20 s clips to the channel. For skill-quality Shorts use
+# "Generate faceless Short" (faceless-short.yml). Disable this workflow if you only publish
+# from the skill pipeline.
+name: Legacy Shorts Pipeline (Piper + SVG renderer, not the skill)
 
 on:
   schedule:
