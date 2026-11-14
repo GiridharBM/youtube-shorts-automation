@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildMetadata,
+  formatFailure,
   getProcessingFailure,
   isProcessingComplete,
   normalizePrivacy,
@@ -40,8 +41,25 @@ test('rejects invalid privacy values and malformed arguments', () => {
   assert.throws(() => parseArgs(['--video']), /Missing value/);
 });
 
-test('recognizes processing success and failures', () => {
-  assert.equal(isProcessingComplete({ processingDetails: { processingStatus: 'succeeded' } }), true);
+test('explains which stage failed and what to fix', () => {
+  const processing = formatFailure(new Error('Insufficient Permission'), 'insufficientPermissions', 'processing');
+  assert.match(processing, /during processing/);
+  assert.match(processing, /insufficientPermissions/);
+  assert.match(processing, /youtube\.force-ssl/);
+
+  const thumbnail = formatFailure(new Error('Insufficient Permission'), 'insufficientPermissions', 'thumbnail');
+  assert.match(thumbnail, /during thumbnail/);
+  assert.match(thumbnail, /youtube\.com\/verify/);
+
+  const upload = formatFailure(new Error('boom'), '', 'upload');
+  assert.match(upload, /during upload/);
+  assert.match(upload, /boom/);
+
+  const invalidGrant = formatFailure(new Error('invalid_grant'), 'invalid_grant', 'processing');
+  assert.match(invalidGrant, /get-youtube-refresh-token\.mjs/);
+});
+
+test('recognizes processing success and failures', () => {  assert.equal(isProcessingComplete({ processingDetails: { processingStatus: 'succeeded' } }), true);
   assert.equal(isProcessingComplete({ processingDetails: { processingStatus: 'processing' } }), false);
   assert.match(getProcessingFailure({
     processingDetails: { processingStatus: 'failed', processingFailureReason: 'transcodeFailed' }

@@ -135,7 +135,8 @@ function writeReport(reportPath, report) {
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 }
 
-function formatFailure(error, apiReason) {
+export function formatFailure(error, apiReason, stage = '') {
+  const denied = apiReason === 'insufficientPermissions' || apiReason === 'forbidden';
   const hints = {
     invalid_grant: 'YouTube rejected the refresh token. Re-run scripts/get-youtube-refresh-token.mjs and update YT_REFRESH_TOKEN.',
     uploadLimitExceeded: 'The channel has reached its YouTube upload limit. Try again later.',
@@ -146,11 +147,23 @@ function formatFailure(error, apiReason) {
     uploadRateLimitExceeded: 'YouTube rate-limited thumbnail uploads. Try again later.'
   };
 
+  const stageHints = {
+    processing: denied
+      ? 'The refresh token has no read scope, so videos.list (needed for the processing status) was refused. Re-authorize with the youtube.force-ssl scope: node scripts/get-youtube-refresh-token.mjs, then update YT_REFRESH_TOKEN.'
+      : '',
+    thumbnail: denied
+      ? 'YouTube refused to set the custom thumbnail. Verify the channel at https://www.youtube.com/verify, and note that YouTube currently documents custom Short thumbnails only in YouTube Studio.'
+      : '',
+    upload: denied ? 'The refresh token is missing the scope this call needs (youtube.force-ssl).' : ''
+  };
+
   return [
     'YouTube step failed',
+    stage ? ` during ${stage}` : '',
     apiReason ? ` (${apiReason})` : '',
     `: ${error?.message || String(error)}`,
-    hints[apiReason] ? ` ${hints[apiReason]}` : ''
+    hints[apiReason] ? ` ${hints[apiReason]}` : '',
+    stageHints[stage] ? ` ${stageHints[stage]}` : ''
   ].join('');
 }
 
@@ -273,6 +286,7 @@ async function main() {
   const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
   let videoId = null;
+  let stage = 'upload';
   try {
     console.log(`Uploading ${path.basename(videoPath)} as ${privacy}...`);
     const upload = await withTimeout(
@@ -303,9 +317,11 @@ async function main() {
     }
     console.log(`Uploaded: ${videoUrl(videoId)}`);
 
+    stage = 'processing';
     const processed = await waitForProcessing(youtube, videoId);
     console.log('YouTube processing succeeded.');
 
+    stage = 'thumbnail';
     const thumbnail = await setThumbnail(youtube, videoId, thumbnailPath);
     const report = {
       uploadedAt: new Date().toISOString(),
@@ -325,6 +341,7 @@ async function main() {
     console.log(`Upload report: ${reportPath}`);
   } catch (error) {
     const apiReason = getYouTubeApiErrorReason(error);
+    const message = formatFailure(error, apiReason, stage);
     try {
       writeReport(reportPath, {
         uploadedAt: new Date().toISOString(),
@@ -332,14 +349,15 @@ async function main() {
         url: videoId ? videoUrl(videoId) : null,
         privacyStatus: privacy,
         title: metadata.title,
+        stage,
         thumbnailApplied: false,
-        error: error?.message || String(error),
+        error: message,
         apiReason: apiReason || null
       });
     } catch (reportError) {
       console.error(`Could not write upload report: ${reportError.message}`);
     }
-    throw new Error(formatFailure(error, apiReason), { cause: error });
+    throw new Error(message, { cause: error });
   }
 }
 
