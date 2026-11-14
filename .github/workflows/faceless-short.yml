@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       topic:
-        description: Topic or brief for both shorts (one explainer, one story)
-        required: true
+        description: Topic for both shorts, or "auto" to let the model choose a fresh one
+        required: false
+        default: auto
         type: string
       fact_style:
         description: Style for the factual explainer short
@@ -38,15 +39,17 @@ on:
         type: choice
         options:
           - opencode-go/glm-5.3-flash
+          - opencode-go/mimo-v2.6-flash
           - opencode-go/deepseek-v4.1-flash
+          - opencode-go/qwen3.8-flash
+          - opencode-go/minimax-m3.1-flash
+          - opencode-go/gpt-6-luna
+          - opencode-go/claude-haiku-5-5
           - opencode-go/glm-5.3
           - opencode-go/kimi-k3
           - opencode-go/kimi-k3.1-pro
-          - opencode-go/minimax-m3.1-flash
-          - opencode-go/qwen3.8-flash
-          - opencode-go/claude-haiku-5-5
-          - opencode-go/gpt-6-luna
           - opencode-go/grok-4.7
+          - opencode-go/gemini-4-argon
       upload_to_youtube:
         description: Upload both shorts to YouTube
         required: true
@@ -175,14 +178,19 @@ jobs:
           }
           JSON
 
-          node --input-type=module - "$GENERATED_ROOT" <<'NODE'
+          cat > "$RUNNER_TEMP/build-prompt.mjs" <<'NODE'
           import fs from 'node:fs';
 
-          const root = process.argv[2];
-          const { FACT_STYLE, STORY_STYLE, TOPIC, SHORT_NAME } = process.env;
-          if (!FACT_STYLE || !STORY_STYLE || !TOPIC || !SHORT_NAME || !root) {
+          const [root, kind, topicArg] = process.argv.slice(2);
+          const { FACT_STYLE, STORY_STYLE, SHORT_NAME } = process.env;
+          if (!FACT_STYLE || !STORY_STYLE || !SHORT_NAME || !root || (kind !== 'fact' && kind !== 'story')) {
             throw new Error('Missing generation prompt environment.');
           }
+
+          const style = kind === 'fact' ? FACT_STYLE : STORY_STYLE;
+          const name = `${SHORT_NAME}-${kind}`;
+          const dir = `${root}/${name}`;
+          const auto = !topicArg || topicArg.trim().toLowerCase() === 'auto';
 
           const rules = `Rules:
           - Do not ask questions or wait for approval. The skill's "Build it?" step is pre-approved.
@@ -191,6 +199,12 @@ jobs:
           - Run every project command with the project directory as the working directory.
           - Use the skill defaults: voice am_michael, the built-in music bed that fits the topic, a 30-45 second length, and the style's end line.
           - Web search is switched off in this environment. Never call a Web Search tool; it aborts the run. To check a fact, use WebFetch on a specific URL (an official page, for example). If a fetch fails, carry on without that source and do not claim you verified it.
+
+          Composition safety. The frame is 1080x1920 and this is a hard rule:
+          - Keep every person, prop, label, and caption fully inside the frame, at least 90 px from the left and right edges and 60 px from the top and bottom.
+          - Never place a subject centre closer than 220 px to the left or right edge, or make it wider than 760 px. Account for the camera punch-in and drift: when the shot zooms, pull the subject further in.
+          - In 2D styles keep full-body figure centres between x=300 and x=780. The outer 220 px on each side is a dead zone.
+          - Nothing important may be cut off at any edge. Figures and props half outside the frame are the most common failure.
 
           Script quality bar. This is what separates a good short from a bad one, so hold to it:
           - About 90-110 spoken words for a 30-45 s short, split into 10-12 lines.
@@ -215,6 +229,7 @@ jobs:
           QA is mandatory, not optional:
           - Open review/all.jpg with your image reader and read the whole sheet, then open key frames full size: node tools/capture.mjs frames review/f "4.2,8.0".
           - Fix what you find: captions landing early or misspelled, text inside the caption zone (y 1250-1550), props appearing before their cause, off-palette colors, unreadable words, collisions.
+          - Look at the outer edges of every tile. If a person, prop, label, or caption is cut off at any edge, move it inward and re-render.
           - Re-render the sheet and look again. Never ship a frame you have not looked at.
 
           Render:
@@ -230,11 +245,17 @@ jobs:
           RESULT_THUMBNAIL=<project-dir>/renders/thumbnail.jpg
           `;
 
-          function buildPrompt({ label, style, brief, name }) {
-            const dir = `${root}/${name}`;
-            const prompt = `@faceless-shorts
+          const brief = kind === 'fact'
+            ? (auto
+              ? `A factual explainer short. Choose one specific, surprising, well-documented topic yourself, then make one clear idea land for a viewer who has never heard of it. Use only well-established facts. Do not default to black holes, space, or AI. State the chosen topic in your first report line.`
+              : `A factual explainer short about the topic below. Make one clear idea land for a viewer who has never heard of it. Use only well-established facts.\n\nTopic: ${topicArg}`)
+            : (auto
+              ? `A short original story. Choose one small, concrete idea yourself. Do not default to black holes, space, or AI. Give it a protagonist, a concrete goal, a complication, a decisive action, and an earned payoff. Original fiction only: no real private people, no existing franchise characters, no copied scripts or shots. If the story states a real-world fact, source it; if it is pure fiction, keep the sources list empty or note that it makes no factual claims. State the chosen idea in your first report line.`
+              : `A short original story inspired by the topic below. Give it a protagonist, a concrete goal, a complication, a decisive action, and an earned payoff. Original fiction only: no real private people, no existing franchise characters, no copied scripts or shots. If the story states a real-world fact, source it; if it is pure fiction, keep the sources list empty or note that it makes no factual claims.\n\nTopic: ${topicArg}`);
 
-          You are running non-interactively in GitHub Actions. Use the faceless-shorts skill at .opencode/skills/faceless-shorts to produce exactly one finished vertical Short. This is the ${label} short of a two-video run.
+          const prompt = `@faceless-shorts
+
+          You are running non-interactively in GitHub Actions. Use the faceless-shorts skill at .opencode/skills/faceless-shorts to produce exactly one finished vertical Short. This is the ${kind} short of a two-video run.
 
           Style: ${style}
           Brief: ${brief}
@@ -247,37 +268,39 @@ jobs:
           RESULT_MP4=${dir}/renders/final.mp4
           RESULT_THUMBNAIL=${dir}/renders/thumbnail.jpg
           `;
-            return prompt
-              .replaceAll('<style>', style)
-              .replaceAll('<project-name>', name)
-              .replaceAll('<project-dir>', dir);
-          }
 
-          const factPrompt = buildPrompt({
-            label: 'fact',
-            style: FACT_STYLE,
-            brief: `A factual explainer short about the topic below. Make one clear idea land for a viewer who has never heard of it. Use only well-established facts.\n\nTopic: ${TOPIC}`,
-            name: `${SHORT_NAME}-fact`
-          });
-
-          const storyPrompt = buildPrompt({
-            label: 'story',
-            style: STORY_STYLE,
-            brief: `A short original story inspired by the topic below. Give it a protagonist, a concrete goal, a complication, a decisive action, and an earned payoff. Original fiction only: no real private people, no existing franchise characters, no copied scripts or shots. If the story states a real-world fact, source it; if it is pure fiction, keep the sources list empty or note that it makes no factual claims.\n\nTopic: ${TOPIC}`,
-            name: `${SHORT_NAME}-story`
-          });
-
-          fs.writeFileSync(`${root}/fact-prompt.txt`, factPrompt, 'utf8');
-          fs.writeFileSync(`${root}/story-prompt.txt`, storyPrompt, 'utf8');
+          fs.writeFileSync(`${root}/${kind}-prompt.txt`, prompt
+            .replaceAll('<style>', style)
+            .replaceAll('<project-name>', name)
+            .replaceAll('<project-dir>', dir), 'utf8');
           NODE
 
-          if [ ! -s "$GENERATED_ROOT/fact-prompt.txt" ] || [ ! -s "$GENERATED_ROOT/story-prompt.txt" ]; then
-            echo "::error::Prompt generation failed; the prompts were not written."
+          fact_topic="${TOPIC:-auto}"
+          node "$RUNNER_TEMP/build-prompt.mjs" "$GENERATED_ROOT" fact "$fact_topic"
+
+          if [ ! -s "$GENERATED_ROOT/fact-prompt.txt" ]; then
+            echo "::error::Prompt generation failed; the fact prompt was not written."
             exit 1
           fi
 
           fact_status=0
           opencode run --standalone --model "$MODEL" --agent build --auto --archived "$(cat "$GENERATED_ROOT/fact-prompt.txt")" || fact_status=$?
+
+          # In auto mode the story follows the subject the fact short chose, when it is readable.
+          story_topic="$fact_topic"
+          if [ "$(printf '%s' "$fact_topic" | tr '[:upper:]' '[:lower:]' | xargs)" = "auto" ]; then
+            story_topic="$(node -e 'try { const s = require(process.argv[1]); if (typeof s.title === "string" && s.title.trim()) console.log(s.title.trim()) } catch {}' "$GENERATED_ROOT/$SHORT_NAME-fact/script.json" 2>/dev/null || true)"
+            if [ -z "$story_topic" ]; then
+              story_topic="auto"
+            fi
+          fi
+
+          node "$RUNNER_TEMP/build-prompt.mjs" "$GENERATED_ROOT" story "$story_topic"
+
+          if [ ! -s "$GENERATED_ROOT/story-prompt.txt" ]; then
+            echo "::error::Prompt generation failed; the story prompt was not written."
+            exit 1
+          fi
 
           story_status=0
           opencode run --standalone --model "$MODEL" --agent build --auto --archived "$(cat "$GENERATED_ROOT/story-prompt.txt")" || story_status=$?

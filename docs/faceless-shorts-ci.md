@@ -42,7 +42,8 @@ Nothing else has to change: the two workflows are independent.
 3. Verifies the selected `opencode-go/<model>` is present in the authenticated Go catalog.
 4. Runs OpenCode non-interactively twice: once for the **fact short**, once for the **story short**.
    Each run builds its own project with the skill, does the visual QA pass, and renders its own MP4
-   and thumbnail.
+   and thumbnail. With `topic: auto`, the fact run chooses its own subject and the story run follows
+   the title it wrote; with any other value, both runs use that topic.
 5. Collects both MP4s, both thumbnails, both scripts, and both QA contact sheets.
 6. If `upload_to_youtube` is true, uploads both shorts, waits for processing, and sets both
    custom thumbnails. One upload failing does not cancel the other.
@@ -61,14 +62,20 @@ collection step verifies it.
   contact sheet.
 - **QA**: the agent must open `review/all.jpg`, read the whole sheet, open key frames full size, fix
   what it finds, re-render the sheet and look again. It reports the issues it fixed.
+- **Composition safety**: the frame is 1080x1920. Subjects must stay inside it with at least 90 px
+  side margins, full-body figures keep their centres between x=300 and x=780, and nothing may be cut
+  off at an edge after the camera punch-in or drift. The QA pass checks every tile's outer edges,
+  because clipped figures and props were the visible defect in the first two-video run.
 - **Hard gates in the collection step**: portrait video, 15-180 s duration, a real audio stream,
   non-silent audio, and a portrait JPEG thumbnail. A video shorter than 15 s means the script was too
   thin and the job fails instead of publishing a clip like that.
 
 Style choice drives both look and render time. The defaults `inside-out` (fact) and `stick-story`
 (story) are the 2D styles, so they render quickly on a hosted CPU runner. The 3D styles
-(`deep-dive`, `night-file`, `tall-tale`) match a high-end local render but need software rendering,
-roughly 30-40 minutes per video, and the two-video run can then take well over an hour.
+(`deep-dive`, `night-file`, `tall-tale`) match a high-end local render but need software rendering:
+in the first measured run, a 37 s `deep-dive` fact short took about 70 minutes and a 40 s
+`stick-story` took about 29 minutes. The two-video run can therefore take well over an hour even
+though the model bill is only cents. If speed matters, keep both styles 2D.
 
 ## Runner requirements
 
@@ -98,24 +105,26 @@ model-download hosts. Do not point the workflow at a developer laptop.
 4. The workflow pins `@opencode/cli@2.3.0`. Change the pin deliberately after testing a newer CLI.
 
 Model references use the documented form `opencode-go/<model-id>`. The workflow dropdown contains only
-active Go models verified against the current catalog:
+active Go models verified against the current catalog. Prices are per 1M tokens (input/output) and the
+monthly figure is the Go plan allowance for that model:
 
-- `opencode-go/glm-5.3-flash` (default)
-- `opencode-go/deepseek-v4.1-flash`
-- `opencode-go/glm-5.3`
-- `opencode-go/kimi-k3`
-- `opencode-go/kimi-k3.1-pro`
-- `opencode-go/minimax-m3.1-flash`
-- `opencode-go/qwen3.8-flash`
-- `opencode-go/claude-haiku-5-5`
-- `opencode-go/gpt-6-luna`
-- `opencode-go/grok-4.7`
+- `opencode-go/glm-5.3-flash` — $0.15/$0.50, $60 (default)
+- `opencode-go/mimo-v2.6-flash` — $0.14/$0.28, $60 (cheapest output)
+- `opencode-go/deepseek-v4.1-flash` — $0.15/$0.60 off-peak, $100; needs **Regions → Global**
+- `opencode-go/qwen3.8-flash` — $0.15/$0.47, $30
+- `opencode-go/minimax-m3.1-flash` — $0.15/$0.60, $20
+- `opencode-go/gpt-6-luna` — $0.10/$0.50, $15
+- `opencode-go/claude-haiku-5-5` — $0.10/$0.50, $15
+- `opencode-go/gemini-4-argon` — $2.00/$10.00, $30 (the most expensive option by far)
+- `opencode-go/glm-5.3`, `opencode-go/kimi-k3`, `opencode-go/kimi-k3.1-pro`, `opencode-go/grok-4.7`
+  — higher-cost models, kept for completeness
 
-`glm-5.3-flash` is the default because it is active, inexpensive, and available in the default Go region
-settings. `deepseek-v4.1-flash` requires the workspace privacy setting **Regions → Global** before it can
-be used, and it is the strongest option for the one-shot build-and-QA loop. If the selected model is
-absent or blocked, the preflight step fails and lists the available models; it never falls back to
-another provider or model.
+`glm-5.3-flash` stays the default because it is cheap, available in the default Go region settings, and
+it produced the working two-video run. `mimo-v2.6-flash` is the cheapest per output token if you want to
+experiment. `gemini-4-argon` costs roughly 13 times GLM Flash per output token, so choosing it increases
+the bill rather than reducing it. Model choice is only a small part of the wall time: the render, not the
+model, is what makes a run take an hour. If the selected model is absent or blocked, the preflight step
+fails and lists the available models; it never falls back to another provider or model.
 
 The workflow never falls back to Copilot, a direct OpenAI API key, or another provider.
 
@@ -179,7 +188,8 @@ If you upload at high volume, check the project's quota and YouTube's API audit 
 ## Run the workflow
 
 1. Open **Actions → Generate faceless Shorts → Run workflow**.
-2. Enter a `topic`. It seeds both shorts: the fact short explains it, the story short is inspired by it.
+2. Leave `topic` as `auto` to let the fact run choose a fresh subject and the story run follow its
+   title, or type a topic to seed both shorts with it.
 3. Choose `fact_style` (default `inside-out`) and `story_style` (default `stick-story`).
 4. Choose an OpenCode Go `model`.
 5. Leave `upload_to_youtube` as `false` for a dry run. Both shorts are still produced.

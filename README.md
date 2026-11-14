@@ -42,6 +42,10 @@ in source code or workflow logs.
 Shorts with the vendored [`faceless-shorts`](.opencode/skills/faceless-shorts/SKILL.md) skill, using
 OpenCode Go: one factual explainer and one story. It always saves both MP4s and thumbnails as a workflow
 artifact and can optionally upload them to YouTube.
+
+`topic` defaults to `auto`: the fact short chooses its own subject, and the story short follows the
+title it wrote. Type a topic instead to pin both videos to it. A run with one 3D style and one 2D style
+takes roughly 1.5-2 hours on a hosted CPU runner; the 3D render is the slow part, not the model.
 See [`docs/faceless-shorts-ci.md`](docs/faceless-shorts-ci.md) for the Go credential, YouTube OAuth
 setup, runner requirements, inputs, artifact locations, and how the legacy pipeline differs. The legacy
 `pipeline.yml` workflow (Piper + rsvg renderer) is unchanged apart from its display name and does not use
