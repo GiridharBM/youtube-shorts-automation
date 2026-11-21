@@ -37,19 +37,20 @@ on:
           - opencode-go/grok-4.7
           - opencode-go/gemini-4-argon
       voice:
-        description: Narration voice (edge-tts)
+        description: Narration voice ("piper:" runs locally, "edge:" needs Microsoft)
         required: true
-        default: en-US-AndrewMultilingualNeural
+        default: piper:en_US-ryan-high
         type: choice
         options:
-          - en-US-AndrewMultilingualNeural
-          - en-US-BrianMultilingualNeural
-          - en-US-AvaMultilingualNeural
-          - en-US-EmmaMultilingualNeural
-          - en-US-GuyNeural
-          - en-US-JennyNeural
-          - en-GB-RyanNeural
-          - en-GB-SoniaNeural
+          - piper:en_US-ryan-high
+          - piper:en_US-lessac-high
+          - piper:en_US-amy-medium
+          - piper:en_US-joe-medium
+          - piper:en_US-kristin-medium
+          - piper:en_GB-alan-medium
+          - piper:en_GB-cori-high
+          - edge:en-US-AndrewMultilingualNeural
+          - edge:en-US-JennyNeural
       upload_to_youtube:
         description: Upload the short to YouTube
         required: true
@@ -89,7 +90,7 @@ jobs:
       FORCE_TOPIC: ${{ inputs.topic != 'auto' && inputs.topic || '' }}
       VIDEO_STYLE: ${{ inputs.style || 'auto' }}
       OPENCODE_MODEL: ${{ inputs.model || '' }}
-      VOICE_NAME: ${{ inputs.voice || 'en-US-AndrewMultilingualNeural' }}
+      VOICE_SELECT: ${{ inputs.voice || 'piper:en_US-ryan-high' }}
       YOUTUBE_PRIVACY: ${{ inputs.youtube_visibility || 'private' }}
       FPS: ${{ inputs.fps || '30' }}
       VIDEO_FPS: ${{ inputs.fps || '30' }}
@@ -145,6 +146,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Cache Piper voices
+        uses: actions/cache@v4
+        with:
+          path: voices
+          key: piper-${{ inputs.voice || 'piper:en_US-ryan-high' }}
+
       - name: Cache Whisper model weights
         uses: actions/cache@v4
         with:
@@ -168,7 +175,15 @@ jobs:
 
       # ---- 2. voice + word timings ----------------------------------------
       - name: Narrate (TTS)
-        run: python scripts/tts.py
+        # edge-tts rate-limits CI addresses. tts.py already retries each beat
+        # six times; this gives the whole step one more go after a long pause,
+        # which is cheaper than losing the run.
+        run: |
+          python scripts/tts.py || {
+            echo "::warning::edge-tts failed, waiting 60s and retrying once"
+            sleep 60
+            python scripts/tts.py
+          }
 
       - name: Word timings (Whisper)
         run: python scripts/words.py

@@ -1,4 +1,6 @@
 # --- voice (TTS) ---
+# piper is the default: fully local, so no rate limits and no outages.
+piper-tts>=1.2.0
 edge-tts>=7.0.0
 
 # --- captions: word-level speech-to-text ---

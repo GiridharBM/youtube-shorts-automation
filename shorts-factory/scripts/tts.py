@@ -18,15 +18,27 @@ import asyncio
 import pathlib
 import shutil
 import sys
+import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from common import (BUILD, die, ffprobe_duration, load_config, log, read_json,
-                    run, write_json)
+from common import (BUILD, ROOT, die, ffprobe_duration, load_config, log,
+                    read_json, run, write_json)
 
 SR = 24000  # narration sample rate; plenty for speech, small files
 
 
-def say_edge(text: str, out_mp3: pathlib.Path, cfg: dict) -> None:
+def say_edge(text: str, out_mp3: pathlib.Path, cfg: dict) -> int:
+    """Synthesise one beat. Returns the number of attempts it took.
+
+    edge-tts talks to an unofficial Microsoft endpoint that rate-limits, and
+    it is noticeably harsher on datacentre IPs than on a laptop — CI sees
+    "No audio was received" far more often than local runs do. It is almost
+    always transient, so this retries patiently with jittered backoff rather
+    than failing the whole video over one beat.
+    """
+    import random
+    import time
+
     import edge_tts
 
     async def go() -> None:
@@ -38,34 +50,67 @@ def say_edge(text: str, out_mp3: pathlib.Path, cfg: dict) -> None:
         )
         await comm.save(str(out_mp3))
 
-    for attempt in range(1, 4):
+    attempts = int(cfg["voice"].get("attempts", 6))
+    for attempt in range(1, attempts + 1):
         try:
+            if out_mp3.exists():
+                out_mp3.unlink()
             asyncio.run(go())
             if out_mp3.exists() and out_mp3.stat().st_size > 1024:
-                return
+                return attempt
             raise RuntimeError("edge-tts produced an empty file")
         except Exception as exc:  # noqa: BLE001
-            log(f"  edge-tts attempt {attempt} failed: {exc}")
-            if attempt == 3:
-                die("edge-tts failed three times. Check the voice name with "
-                    "`edge-tts --list-voices`, or switch voice.backend to piper.")
-            import time
-            time.sleep(3 * attempt)
+            log(f"  edge-tts attempt {attempt}/{attempts} failed: {exc}")
+            if attempt == attempts:
+                die(f"edge-tts failed {attempts} times on one beat. This is "
+                    "usually rate limiting rather than a bad voice name — "
+                    "re-running often just works. To remove the dependency "
+                    "entirely, set voice.backend to piper.")
+            time.sleep(min(30.0, 2.0 * (2 ** (attempt - 1))) + random.random() * 2)
+    return attempts
+
+
+PIPER_HOST = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
+
+
+def piper_model(name: str) -> pathlib.Path:
+    """Return the local .onnx for a voice like `en_US-ryan-high`, fetching it
+    from the Piper voice library on first use."""
+    voices = ROOT / "voices"
+    voices.mkdir(exist_ok=True)
+    onnx = voices / f"{name}.onnx"
+    if onnx.exists() and onnx.stat().st_size > 1_000_000:
+        return onnx
+
+    try:
+        locale, speaker, quality = name.split("-", 2)
+        lang = locale.split("_")[0]
+    except ValueError:
+        die(f"piper voice {name!r} should look like en_US-ryan-high")
+    base = f"{PIPER_HOST}/{lang}/{locale}/{speaker}/{quality}/{name}"
+
+    log(f"fetching piper voice {name} (one time, then cached)")
+    for ext in (".onnx", ".onnx.json"):
+        dst = voices / f"{name}{ext}"
+        run(["curl", "-sSL", "--fail", "--retry", "3", "-o", str(dst), base + ext])
+        if not dst.exists() or dst.stat().st_size == 0:
+            die(f"could not download {name}{ext} — check the voice name against "
+                "https://huggingface.co/rhasspy/piper-voices")
+    return onnx
 
 
 def say_piper(text: str, out_wav: pathlib.Path, cfg: dict) -> None:
-    model = cfg["voice"]["piper_model"]
-    if not pathlib.Path(model).exists():
-        die(f"piper model {model!r} not found. Download one from "
-            "https://github.com/rhasspy/piper/releases (voices) first.")
-    exe = shutil.which("piper")
-    cmd = [exe, "-m", model, "-f", str(out_wav)] if exe else \
-          [sys.executable, "-m", "piper", "-m", model, "-f", str(out_wav)]
+    """Synthesise locally. No network, no rate limits, no outages."""
     import subprocess
+
+    model = piper_model(str(cfg["voice"]["piper_voice"]))
+    exe = shutil.which("piper")
+    cmd = ([exe] if exe else [sys.executable, "-m", "piper"]) + \
+          ["-m", str(model), "-f", str(out_wav)]
     proc = subprocess.run(cmd, input=text, text=True, capture_output=True)
-    if proc.returncode != 0 or not out_wav.exists():
-        sys.stderr.write(proc.stderr[-2000:])
-        die("piper failed")
+    if proc.returncode != 0 or not out_wav.exists() or out_wav.stat().st_size < 1024:
+        sys.stderr.write((proc.stderr or "")[-2000:])
+        die("piper failed to synthesise")
 
 
 def to_wav(src: pathlib.Path, dst: pathlib.Path) -> None:
@@ -94,7 +139,20 @@ def main() -> None:
         shutil.rmtree(work)
     work.mkdir(parents=True)
 
-    backend = cfg["voice"]["backend"].lower()
+    # `voice.select` is "<backend>:<name>" so a single workflow input picks
+    # both. piper runs locally; edge needs Microsoft's endpoint, which is
+    # better when it works but goes down without warning.
+    select = str(cfg["voice"].get("select") or "").strip()
+    if select:
+        head, _, name = select.partition(":")
+        head = head.lower().strip()
+        if head in ("piper", "edge") and name.strip():
+            cfg["voice"]["backend"] = head
+            key = "piper_voice" if head == "piper" else "name"
+            cfg["voice"][key] = name.strip()
+    backend = str(cfg["voice"]["backend"]).lower()
+    log(f"voice backend={backend} "
+        f"voice={cfg['voice']['piper_voice'] if backend == 'piper' else cfg['voice']['name']}")
     gap_ms = int(cfg["voice"]["gap_ms"])
     silence(work / "gap.wav", gap_ms)
 
@@ -109,7 +167,11 @@ def main() -> None:
         clean = work / f"beat_{i:02d}.wav"
         if backend == "edge":
             raw = raw.with_suffix(".mp3")
-            say_edge(text, raw, cfg)
+            if i:
+                time.sleep(float(cfg["voice"].get("pace_s", 0.8)))
+            took = say_edge(text, raw, cfg)
+            if took > 1:
+                log(f"  (took {took} attempts)")
         elif backend == "piper":
             raw = raw.with_suffix(".wav")
             say_piper(text, raw, cfg)

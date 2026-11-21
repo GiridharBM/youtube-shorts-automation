@@ -25,14 +25,21 @@ opencode:
   attempts: 3
 
 voice:
-  backend: "edge"              # edge | piper
-  # `edge-tts --list-voices` for the full list. These four are the most
-  # natural-sounding English narrators for short-form.
-  name: "en-US-AndrewMultilingualNeural"
-  rate: "+8%"                  # slightly fast = better retention
+  # "<backend>:<name>" — one setting picks the engine and the voice.
+  #   piper:<voice>  runs locally. No network at synthesis time, so no rate
+  #                  limits and no outages. This is the default for a reason:
+  #                  edge-tts broke mid-build during development.
+  #   edge:<voice>   Microsoft's neural voices. Better, when they work.
+  select: "piper:en_US-ryan-high"
+
+  backend: "piper"
+  piper_voice: "en_US-ryan-high"   # fetched into voices/ on first use
+  name: "en-US-AndrewMultilingualNeural"   # used when backend is edge
+  rate: "+8%"
   pitch: "+0Hz"
-  gap_ms: 170                  # silence inserted between beats
-  piper_model: "en_US-amy-medium.onnx"
+  gap_ms: 170
+  attempts: 6
+  pace_s: 0.8
 
 captions:
   # Captions are drawn on the canvas (web/src/core/captions.js), not burned in
