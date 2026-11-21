@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>shorts-factory</title>
+<style>
+  html, body { margin: 0; background: #0b0b0f; height: 100%; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; height: 100vh; width: auto; max-width: 100vw; }
+  body.capture canvas { height: auto; width: auto; }
+  #play { position: fixed; font: 800 26px system-ui, sans-serif; padding: 16px 34px; border: 0;
+          border-radius: 40px; background: #fff; color: #111; cursor: pointer; }
+</style></head>
+<body>
+  <canvas id="cv" width="1080" height="1920"></canvas>
+  <button id="play" hidden>&#9654; PLAY</button>
+  <script>if (location.search.includes('capture')) document.body.className = 'capture';</script>
+  <script type="module" src="src/main.js"></script>
+</body></html>

@@ -1,0 +1,18 @@
+# --- voice (TTS) ---
+edge-tts>=7.0.0
+
+# --- captions: word-level speech-to-text ---
+# Audio is decoded with ffmpeg and passed to Whisper as an array, so PyAV is
+# never used for decoding. Do not "fix" that by passing a path — PyAV 19
+# dropped an argument faster-whisper still sends, and it breaks.
+faster-whisper>=1.1.0
+numpy>=1.26.0
+
+# --- youtube upload ---
+google-api-python-client>=2.140.0
+google-auth>=2.34.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+
+# --- misc ---
+PyYAML>=6.0.1

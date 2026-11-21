@@ -1,0 +1,11 @@
+build/
+__pycache__/
+*.pyc
+.venv/
+client_secret*.json
+token.json
+*.onnx
+*.onnx.json
+.DS_Store
+web/data/*.json
+web/data/*.wav
