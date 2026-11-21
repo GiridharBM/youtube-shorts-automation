@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# shorts-factory config  —  everything the pipeline reads lives here.
+# Anything here can be overridden by an env var of the same name, upper-cased.
+# ---------------------------------------------------------------------------
+
+channel:
+  # The niche. opencode picks each day's topic *inside* this niche, so the
+  # channel stays coherent instead of being random trivia.
+  niche: "surprising science facts that explain everyday things"
+  audience: "curious 18-34 year olds scrolling on a phone"
+  tone: "fast, concrete, a little bit awed; no fluff, no 'welcome back'"
+  language: "en"
+
+script:
+  beats: 6              # number of visual slides / narration chunks
+  target_words: 130     # ~45-55s of speech. Shorts cap is 180s.
+  max_title_chars: 90
+
+opencode:
+  # Run `opencode models` locally to see what your account exposes and paste
+  # one here. Leave blank to use whatever opencode has configured as default.
+  model: ""
+  # Extra CLI flags passed straight through to `opencode run`.
+  extra_args: ""
+  attempts: 3
+
+voice:
+  backend: "edge"              # edge | piper
+  # `edge-tts --list-voices` for the full list. These four are the most
+  # natural-sounding English narrators for short-form.
+  name: "en-US-AndrewMultilingualNeural"
+  rate: "+8%"                  # slightly fast = better retention
+  pitch: "+0Hz"
+  gap_ms: 170                  # silence inserted between beats
+  piper_model: "en_US-amy-medium.onnx"
+
+captions:
+  # Captions are drawn on the canvas (web/src/core/captions.js), not burned in
+  # with libass — so colour, size and position live there. These two are the
+  # only knobs the Python side needs.
+  whisper_model: "small"       # tiny | base | small | medium  (small = good/cheap)
+  compute_type: "int8"
+
+video:
+  width: 1080
+  height: 1920
+  fps: 30                      # 30 looks right for Shorts; 24 renders ~20% faster
+  jpeg_q: 0.93                 # quality of each captured frame before H.264
+  # Palette: auto (hashed from the topic, so a topic always looks the same)
+  # or one of midnight | mint | ember | arctic | amber | ultra | moss
+  style: "auto"
+  crf: 20
+  # Set to a file in assets/music/ to add a bed. Leave blank for none.
+  # Use only music you actually hold the rights to.
+  music: ""
+  music_db: -26
+
+youtube:
+  category_id: "27"            # 27=Education, 24=Entertainment, 28=Sci&Tech
+  privacy: "private"           # private | unlisted | public  (see README)
+  made_for_kids: false

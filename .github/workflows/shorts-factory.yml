@@ -1,0 +1,232 @@
+name: Shorts factory (animated)
+
+on:
+  # Manual only until you choose otherwise. Uncomment to run daily;
+  # GitHub's scheduler can fire 10-30 minutes late, so keep it to ~2/day.
+  # schedule:
+  #   - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: Topic for the short, or "auto" to let the model choose a fresh one
+        required: false
+        default: auto
+        type: string
+      style:
+        description: Colour palette ("auto" hashes it from the topic)
+        required: true
+        default: auto
+        type: choice
+        options: [auto, midnight, mint, ember, arctic, amber, ultra, moss]
+      model:
+        description: OpenCode model that writes the script
+        required: true
+        default: opencode-go/glm-5.3-flash
+        type: choice
+        options:
+          - opencode-go/glm-5.3-flash
+          - opencode-go/mimo-v2.6-flash
+          - opencode-go/deepseek-v4.1-flash
+          - opencode-go/qwen3.8-flash
+          - opencode-go/minimax-m3.1-flash
+          - opencode-go/gpt-6-luna
+          - opencode-go/claude-haiku-5-5
+          - opencode-go/glm-5.3
+          - opencode-go/kimi-k3
+          - opencode-go/kimi-k3.1-pro
+          - opencode-go/grok-4.7
+          - opencode-go/gemini-4-argon
+      voice:
+        description: Narration voice (edge-tts)
+        required: true
+        default: en-US-AndrewMultilingualNeural
+        type: choice
+        options:
+          - en-US-AndrewMultilingualNeural
+          - en-US-BrianMultilingualNeural
+          - en-US-AvaMultilingualNeural
+          - en-US-EmmaMultilingualNeural
+          - en-US-GuyNeural
+          - en-US-JennyNeural
+          - en-GB-RyanNeural
+          - en-GB-SoniaNeural
+      upload_to_youtube:
+        description: Upload the short to YouTube
+        required: true
+        default: false
+        type: boolean
+      youtube_visibility:
+        description: YouTube visibility when upload is enabled
+        required: true
+        default: private
+        type: choice
+        options: [private, unlisted, public]
+      fps:
+        description: Frame rate (24 renders ~20% faster)
+        required: true
+        default: "30"
+        type: choice
+        options: ["30", "24"]
+
+defaults:
+  run:
+    working-directory: shorts-factory
+
+permissions:
+  contents: write          # needed to commit the published-topics ledger
+
+concurrency:
+  group: shorts-factory
+  cancel-in-progress: false
+
+jobs:
+  make-short:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # "auto" means: let opencode pick the topic.
+      FORCE_TOPIC: ${{ inputs.topic != 'auto' && inputs.topic || '' }}
+      VIDEO_STYLE: ${{ inputs.style || 'auto' }}
+      OPENCODE_MODEL: ${{ inputs.model || '' }}
+      VOICE_NAME: ${{ inputs.voice || 'en-US-AndrewMultilingualNeural' }}
+      YOUTUBE_PRIVACY: ${{ inputs.youtube_visibility || 'private' }}
+      FPS: ${{ inputs.fps || '30' }}
+      VIDEO_FPS: ${{ inputs.fps || '30' }}
+      # Upload only when asked for, or on the daily schedule. Any other run
+      # builds the video and stops.
+      DRY_RUN: ${{ (github.event_name == 'schedule' || inputs.upload_to_youtube) && 'false' || 'true' }}
+      # opencode reads whichever of these your account uses. Unset secrets
+      # arrive as empty strings, which is harmless.
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      OPENCODE_ZEN_KEY: ${{ secrets.OPENCODE_ZEN_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # YouTube upload
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: shorts-factory/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"      # capture.mjs needs the global WebSocket
+
+      - name: Install ffmpeg and fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg fonts-dejavu-core fonts-liberation
+          # Inter is what the canvas asks for first; it falls back cleanly.
+          sudo apt-get install -y --no-install-recommends fonts-inter || \
+            echo "note: fonts-inter unavailable, falling back to Liberation Sans"
+          ffmpeg -version | head -1
+
+      - name: Verify Chrome
+        run: |
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$c" >/dev/null; then
+              echo "CHROME=$(command -v $c)" >> "$GITHUB_ENV"; "$c" --version; exit 0
+            fi
+          done
+          echo "::error::no Chrome on the runner"; exit 1
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Cache Whisper model weights
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-${{ hashFiles('shorts-factory/config.yaml') }}
+          restore-keys: whisper-
+
+      - name: Install opencode
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify opencode
+        run: opencode --version
+
+      # ---- 1. content ------------------------------------------------------
+      - name: Write the script with opencode
+        id: script
+        run: python scripts/pick_topic.py
+
+      # ---- 2. voice + word timings ----------------------------------------
+      - name: Narrate (TTS)
+        run: python scripts/tts.py
+
+      - name: Word timings (Whisper)
+        run: python scripts/words.py
+
+      - name: Stage for the renderer
+        run: python scripts/stage.py
+
+      # ---- 3. animation ----------------------------------------------------
+      - name: Check every frame renders
+        run: node tools/capture.mjs check
+
+      - name: Contact sheet (for review)
+        run: node tools/capture.mjs sheet build/review/sheet.jpg 1 8
+
+      - name: Capture the animation
+        run: node tools/capture.mjs video build/visual.mp4
+
+      - name: Mux narration
+        run: python scripts/render.py
+
+      - name: Keep the video as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: short-${{ github.run_number }}
+          path: |
+            shorts-factory/build/final.mp4
+            shorts-factory/build/script.json
+            shorts-factory/build/review/sheet.jpg
+          retention-days: 14
+          if-no-files-found: warn
+
+      # ---- 4. publish ------------------------------------------------------
+      - name: Upload to YouTube
+        id: publish
+        run: python scripts/upload.py
+
+      - name: Record the published topic
+        if: steps.publish.outcome == 'success' && inputs.upload_to_youtube == true
+        run: |
+          if git diff --quiet -- shorts-factory/state/used_topics.json; then
+            echo "ledger unchanged"; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shorts-factory/state/used_topics.json
+          git commit -m "chore: published ${{ steps.script.outputs.topic }}"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          {
+            echo "### Run failed"
+            echo
+            echo "The contact sheet and video (if any) are attached to this run."
+            echo "Common causes: opencode auth, edge-tts network blip,"
+            echo "a canvas error (see the \`check\` step), an expired YouTube"
+            echo "refresh token, or the daily API quota."
+          } >> "$GITHUB_STEP_SUMMARY"
