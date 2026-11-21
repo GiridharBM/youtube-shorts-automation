@@ -8,24 +8,65 @@ on:
   workflow_dispatch:
     inputs:
       topic:
-        description: "Force a specific topic (blank = let opencode choose)"
+        description: Topic for the short, or "auto" to let the model choose a fresh one
         required: false
-        default: ""
-      privacy:
-        description: "YouTube visibility"
-        required: false
-        default: "private"
+        default: auto
+        type: string
+      style:
+        description: Colour palette ("auto" hashes it from the topic)
+        required: true
+        default: auto
         type: choice
-        options: [private, unlisted, public]
-      dry_run:
-        description: "Build the video but do not upload"
-        required: false
+        options: [auto, midnight, mint, ember, arctic, amber, ultra, moss]
+      model:
+        description: OpenCode model that writes the script
+        required: true
+        default: opencode-go/glm-5.3-flash
+        type: choice
+        options:
+          - opencode-go/glm-5.3-flash
+          - opencode-go/mimo-v2.6-flash
+          - opencode-go/deepseek-v4.1-flash
+          - opencode-go/qwen3.8-flash
+          - opencode-go/minimax-m3.1-flash
+          - opencode-go/gpt-6-luna
+          - opencode-go/claude-haiku-5-5
+          - opencode-go/glm-5.3
+          - opencode-go/kimi-k3
+          - opencode-go/kimi-k3.1-pro
+          - opencode-go/grok-4.7
+          - opencode-go/gemini-4-argon
+      voice:
+        description: Narration voice (edge-tts)
+        required: true
+        default: en-US-AndrewMultilingualNeural
+        type: choice
+        options:
+          - en-US-AndrewMultilingualNeural
+          - en-US-BrianMultilingualNeural
+          - en-US-AvaMultilingualNeural
+          - en-US-EmmaMultilingualNeural
+          - en-US-GuyNeural
+          - en-US-JennyNeural
+          - en-GB-RyanNeural
+          - en-GB-SoniaNeural
+      upload_to_youtube:
+        description: Upload the short to YouTube
+        required: true
         default: false
         type: boolean
+      youtube_visibility:
+        description: YouTube visibility when upload is enabled
+        required: true
+        default: private
+        type: choice
+        options: [private, unlisted, public]
       fps:
-        description: "Frame rate (24 renders ~20% faster)"
-        required: false
+        description: Frame rate (24 renders ~20% faster)
+        required: true
         default: "30"
+        type: choice
+        options: ["30", "24"]
 
 defaults:
   run:
@@ -44,13 +85,21 @@ jobs:
     timeout-minutes: 60
 
     env:
-      FORCE_TOPIC: ${{ inputs.topic }}
-      DRY_RUN: ${{ inputs.dry_run }}
-      YOUTUBE_PRIVACY: ${{ inputs.privacy || 'private' }}
+      # "auto" means: let opencode pick the topic.
+      FORCE_TOPIC: ${{ inputs.topic != 'auto' && inputs.topic || '' }}
+      VIDEO_STYLE: ${{ inputs.style || 'auto' }}
+      OPENCODE_MODEL: ${{ inputs.model || '' }}
+      VOICE_NAME: ${{ inputs.voice || 'en-US-AndrewMultilingualNeural' }}
+      YOUTUBE_PRIVACY: ${{ inputs.youtube_visibility || 'private' }}
       FPS: ${{ inputs.fps || '30' }}
+      VIDEO_FPS: ${{ inputs.fps || '30' }}
+      # Upload only when asked for, or on the daily schedule. Any other run
+      # builds the video and stops.
+      DRY_RUN: ${{ (github.event_name == 'schedule' || inputs.upload_to_youtube) && 'false' || 'true' }}
       # opencode reads whichever of these your account uses. Unset secrets
       # arrive as empty strings, which is harmless.
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      OPENCODE_ZEN_KEY: ${{ secrets.OPENCODE_ZEN_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -158,7 +207,7 @@ jobs:
         run: python scripts/upload.py
 
       - name: Record the published topic
-        if: steps.publish.outcome == 'success' && inputs.dry_run != true
+        if: steps.publish.outcome == 'success' && inputs.upload_to_youtube == true
         run: |
           if git diff --quiet -- shorts-factory/state/used_topics.json; then
             echo "ledger unchanged"; exit 0

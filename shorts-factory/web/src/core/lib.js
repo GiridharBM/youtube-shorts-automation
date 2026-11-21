@@ -52,6 +52,15 @@ export function setTheme(seed) {
   return p;
 }
 
+/** Pick a palette by name; falls back to the topic-hashed one for "auto". */
+export function setThemeByName(name, seed) {
+  const want = String(name || '').trim().toLowerCase();
+  const hit = PALETTES.find((p) => p.name === want);
+  if (!hit) return setTheme(seed);
+  Object.assign(C, hit);
+  return hit;
+}
+
 /** '#rrggbb' + alpha -> 'rgba(...)'. Cached, because this runs thousands of times. */
 const _rgba = new Map();
 export function rgba(hex, alpha) {

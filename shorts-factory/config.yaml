@@ -46,6 +46,9 @@ video:
   height: 1920
   fps: 30                      # 30 looks right for Shorts; 24 renders ~20% faster
   jpeg_q: 0.93                 # quality of each captured frame before H.264
+  # Palette: auto (hashed from the topic, so a topic always looks the same)
+  # or one of midnight | mint | ember | arctic | amber | ultra | moss
+  style: "auto"
   crf: 20
   # Set to a file in assets/music/ to add a bed. Leave blank for none.
   # Use only music you actually hold the rights to.

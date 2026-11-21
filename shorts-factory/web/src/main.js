@@ -1,6 +1,7 @@
 // Boot: fonts -> timing -> captions -> shots. Then draw(t) renders film time t
 // as a pure function of t. window.OP is the API tools/capture.mjs drives.
-import { W, H, setCtx, ctx, C, clamp, seg, eo, eio, hash, setTheme, rgba } from './core/lib.js';
+import { W, H, setCtx, ctx, C, clamp, seg, eo, eio, hash, setTheme,
+         setThemeByName, rgba } from './core/lib.js';
 import { T, loadTiming } from './core/timing.js';
 import { buildCaptions, drawCaption, captionList } from './core/captions.js';
 import { backdrop, headline, kicker, progress } from './core/kit.js';
@@ -69,7 +70,9 @@ function draw(t) {
     buildCaptions();
 
     const seed = hash(String(T.lines.map((l) => l.text).join('|')).slice(0, 120));
-    const theme = setTheme(seed);
+    // `style` comes from the workflow input; "auto" hashes the topic instead,
+    // so the same topic always looks the same.
+    const theme = setThemeByName(T.style, seed);
 
     let prev = null;
     const used = new Set();

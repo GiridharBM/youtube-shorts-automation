@@ -1,7 +1,7 @@
 // The narration's clock. Everything on screen is placed against it.
-//   data/lines.json  { duration, lines: [{ i, text, overlay, visual, start, end }] }
+//   data/lines.json  { duration, style, lines: [{ i, text, overlay, visual, start, end }] }
 //   data/words.json  [{ w, line, s, e }]
-export const T = { dur: 0, lines: [], words: [] };
+export const T = { dur: 0, lines: [], words: [], style: 'auto' };
 
 export async function loadTiming() {
   const get = async (f) => {
@@ -13,6 +13,7 @@ export async function loadTiming() {
   T.lines = lines.lines;
   T.words = await get('data/words.json');
   T.dur = lines.duration;
+  T.style = lines.style || 'auto';
   return T;
 }
 
