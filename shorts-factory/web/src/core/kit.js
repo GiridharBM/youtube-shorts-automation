@@ -167,20 +167,34 @@ export function progress(t, dur) {
 
 /** Small drifting kicker naming the subject of the beat. */
 export function kicker(text, lt, d) {
-  const s = String(text || '').toUpperCase().slice(0, 44);
+  const s = String(text || '').toUpperCase().trim();
   if (!s) return;
   const al = clamp(seg(lt, 0.30, 0.62)) * (1 - seg(lt, d - 0.25, d));
   if (al <= 0.01) return;
   ctx.save();
   ctx.globalAlpha = al * 0.8;
-  ctx.font = `700 34px Inter, 'Liberation Sans', 'DejaVu Sans', sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.letterSpacing = '4px';
-  const w = ctx.measureText(s).width;
+
+  // The model writes these, and it writes longer ones than you expect
+  // ("a hand slowly approaching someone's own ribs"). Shrink to fit, then
+  // truncate — never let it run off the edge of the frame.
+  const maxW = W * 0.80;
+  let size = 34, label = s;
+  const measure = (txt, px) => {
+    ctx.font = `700 ${px}px Inter, 'Liberation Sans', 'DejaVu Sans', sans-serif`;
+    return ctx.measureText(txt).width;
+  };
+  while (size > 22 && measure(label, size) > maxW) size -= 2;
+  if (measure(label, size) > maxW) {
+    while (label.length > 8 && measure(label + '…', size) > maxW) label = label.slice(0, -1);
+    label = label.replace(/[\s,]+$/, '') + '…';
+  }
+  const w = measure(label, size);
   const rise = lerp(10, 0, eo(clamp(seg(lt, 0.30, 0.70))));
   rr((W - w) / 2 - 26, KICK_Y - 28 + rise, w + 52, 56, 28, rgba(C.white, 0.10));
   ctx.fillStyle = rgba(C.white, 0.92);
-  ctx.fillText(s, W / 2, KICK_Y + rise);
+  ctx.fillText(label, W / 2, KICK_Y + rise);
   ctx.letterSpacing = '0px';
   ctx.restore();
 }
