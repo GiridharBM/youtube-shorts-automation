@@ -105,7 +105,7 @@ model-download hosts. Do not point the workflow at a developer laptop.
 4. The workflow pins `@opencode/cli@2.3.0`. Change the pin deliberately after testing a newer CLI.
 
 Model references use the documented form `opencode-go/<model-id>`. The workflow dropdown contains only
-active Go models verified against the current catalog. Prices are per 1M tokens (input/output) and the
+active Go and free OpenCode models verified against the current catalog. Prices are per 1M tokens (input/output) and the
 monthly figure is the Go plan allowance for that model:
 
 - `opencode-go/glm-5.3-flash` — $0.15/$0.50, $60 (default)

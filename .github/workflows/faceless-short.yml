@@ -33,11 +33,12 @@ on:
           - deep-dive
           - night-file
       model:
-        description: OpenCode Go model (must be present in the Go catalog)
+        description: OpenCode Go or free model (must be present in the current catalog)
         required: true
         default: opencode-go/glm-5.3-flash
         type: choice
         options:
+          - opencode-go/beam-free
           - opencode-go/glm-5.3-flash
           - opencode-go/mimo-v2.6-flash
           - opencode-go/deepseek-v4.1-flash
@@ -50,6 +51,18 @@ on:
           - opencode-go/kimi-k3.1-pro
           - opencode-go/grok-4.7
           - opencode-go/gemini-4-argon
+          - opencode-go/hy4-flash-free
+          - opencode-go/longcat-2.5-free
+          - opencode/big-pickle
+          - opencode/deepseek-v4.1-flash-free
+          - opencode/flint-40b-free
+          - opencode/hy4-flash-free
+          - opencode/iceman-free
+          - opencode/longcat-2.5-free
+          - opencode/mimo-v2.6-flash-free
+          - opencode/nemotron-3.5-lightning-free
+          - opencode/nemotron-3.5-super-vl-free
+          - opencode/tidepool-alpha-free
       upload_to_youtube:
         description: Upload both shorts to YouTube
         required: true
@@ -130,7 +143,6 @@ jobs:
         if: ${{ inputs.upload_from_artifact_id == '' }}
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          OPENCODE_DISABLE_FREE_MODELS: '1'
           MODEL: ${{ inputs.model }}
         run: |
           set -euo pipefail
@@ -158,7 +170,6 @@ jobs:
         timeout-minutes: 210
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          OPENCODE_DISABLE_FREE_MODELS: '1'
           MODEL: ${{ inputs.model }}
           FACT_STYLE: ${{ inputs.fact_style }}
           STORY_STYLE: ${{ inputs.story_style }}
