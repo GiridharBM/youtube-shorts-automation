@@ -85,6 +85,9 @@ Add whichever key your account uses as a repo secret — `OPENCODE_API_KEY`
 (opencode Zen), or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` /
 `OPENROUTER_API_KEY` if you bring your own provider.
 
+Free OpenCode models are selectable in the GitHub workflow. If a free model
+reports that its usage limit has been reached, choose a paid Go model instead.
+
 ### 2. YouTube upload credentials
 
 Upload needs OAuth; there is no API-key-only path.

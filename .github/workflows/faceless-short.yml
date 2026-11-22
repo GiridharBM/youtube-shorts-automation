@@ -365,6 +365,7 @@ jobs:
         env:
           SHORT_NAME: ci-${{ github.run_id }}-${{ github.run_attempt }}
           GENERATED_ROOT: ${{ github.workspace }}/.generated
+          MODEL: ${{ inputs.model }}
         run: |
           set -euo pipefail
           mkdir -p artifacts
@@ -455,6 +456,10 @@ jobs:
 
           collect_one fact "$GENERATED_ROOT/$SHORT_NAME-fact"
           collect_one story "$GENERATED_ROOT/$SHORT_NAME-story"
+
+          if [ "$failed" -ne 0 ] && [[ "$MODEL" == opencode/*-free || "$MODEL" == opencode-go/*-free ]]; then
+            echo "::error::The selected free model '$MODEL' may have reached its usage limit. Free models can return 'Free usage limit reached'; retry with a paid Go model such as opencode-go/glm-5.3-flash."
+          fi
 
           exit $failed
 

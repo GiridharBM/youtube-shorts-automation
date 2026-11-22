@@ -126,6 +126,9 @@ the bill rather than reducing it. Model choice is only a small part of the wall 
 model, is what makes a run take an hour. If the selected model is absent or blocked, the preflight step
 fails and lists the available models; it never falls back to another provider or model.
 
+Free model selections have separate usage limits. When a free limit is reached, OpenCode may stop before
+the agent produces `renders/final.mp4`; retry with a paid Go model rather than a free model.
+
 The workflow never falls back to Copilot, a direct OpenAI API key, or another provider.
 
 ## YouTube OAuth setup
