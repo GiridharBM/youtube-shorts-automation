@@ -64,9 +64,9 @@ on:
           - opencode/nemotron-3.5-super-vl-free
           - opencode/tidepool-alpha-free
       upload_to_youtube:
-        description: Upload both shorts to YouTube
+        description: Upload both shorts to YouTube (on by default; set false for a dry run)
         required: true
-        default: false
+        default: true
         type: boolean
       youtube_visibility:
         description: YouTube visibility when upload is enabled (private is the default)

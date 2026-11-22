@@ -67,7 +67,7 @@ on:
       upload_to_youtube:
         description: Upload the short to YouTube
         required: true
-        default: false
+        default: true
         type: boolean
       youtube_visibility:
         description: YouTube visibility when upload is enabled
@@ -113,10 +113,6 @@ jobs:
       # opencode reads whichever of these your account uses. Unset secrets
       # arrive as empty strings, which is harmless.
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-      OPENCODE_ZEN_KEY: ${{ secrets.OPENCODE_ZEN_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       # YouTube upload
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}

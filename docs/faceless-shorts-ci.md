@@ -1,8 +1,8 @@
 # Faceless Shorts CI workflow
 
 `.github/workflows/faceless-short.yml` generates **two** vertical Shorts with the vendored
-[`faceless-shorts`](../.opencode/skills/faceless-shorts/SKILL.md) skill, then optionally uploads both to
-YouTube. It is **manual only** (`workflow_dispatch`); it does not run on pushes or a schedule.
+[`faceless-shorts`](../.opencode/skills/faceless-shorts/SKILL.md) skill, then uploads both to YouTube by
+default. It is **manual only** (`workflow_dispatch`); it does not run on pushes or a schedule.
 
 ## Which workflow is which
 
@@ -45,8 +45,8 @@ Nothing else has to change: the two workflows are independent.
    and thumbnail. With `topic: auto`, the fact run chooses its own subject and the story run follows
    the title it wrote; with any other value, both runs use that topic.
 5. Collects both MP4s, both thumbnails, both scripts, and both QA contact sheets.
-6. If `upload_to_youtube` is true, uploads both shorts, waits for processing, and sets both
-   custom thumbnails. One upload failing does not cancel the other.
+6. By default, uploads both shorts, waits for processing, and sets both custom thumbnails. Set
+   `upload_to_youtube` to `false` to skip this. One upload failing does not cancel the other.
 7. Always uploads the MP4s and thumbnails as a workflow artifact, whether YouTube upload ran or not.
 
 ## Quality bar
@@ -195,11 +195,11 @@ If you upload at high volume, check the project's quota and YouTube's API audit 
    title, or type a topic to seed both shorts with it.
 3. Choose `fact_style` (default `inside-out`) and `story_style` (default `stick-story`).
 4. Choose an OpenCode Go `model`.
-5. Leave `upload_to_youtube` as `false` for a dry run. Both shorts are still produced.
-6. To upload, set `upload_to_youtube` to `true` and choose `youtube_visibility`:
+5. `upload_to_youtube` defaults to `true`; choose `youtube_visibility`:
    - `private` (default)
    - `unlisted`
    - `public`
+6. Set `upload_to_youtube` to `false` for a dry run; both shorts are still produced.
 
 The workflow has only `contents: read` permission, no pull-request trigger, and secrets are scoped to the
 individual generation/upload steps. Fork pull requests never receive these secrets.

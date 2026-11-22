@@ -41,7 +41,7 @@ in source code or workflow logs.
 `.github/workflows/faceless-short.yml` is a separate, manually triggered workflow that generates **two**
 Shorts with the vendored [`faceless-shorts`](.opencode/skills/faceless-shorts/SKILL.md) skill, using
 OpenCode Go: one factual explainer and one story. It always saves both MP4s and thumbnails as a workflow
-artifact and can optionally upload them to YouTube.
+artifact and uploads them to YouTube by default (set `upload_to_youtube` to `false` for a dry run).
 
 `topic` defaults to `auto`: the fact short chooses its own subject, and the story short follows the
 title it wrote. Type a topic instead to pin both videos to it. A run with one 3D style and one 2D style
